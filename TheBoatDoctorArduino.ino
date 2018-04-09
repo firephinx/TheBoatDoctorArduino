@@ -63,6 +63,7 @@
 #include <sensor_msgs/Range.h> // Sensor_msgs Range message for Ultrasonic Sensors
 
 // IMU INCLUDES
+#include <SPI.h> // SPI library included for SparkFunLSM9DS1
 #include <Wire.h> // I2C library included for SparkFunLSM9DS1
 #include <SparkFunLSM9DS1.h> // SparkFun LSM9DS1 library
 
@@ -100,7 +101,7 @@ char right_ultrasonic_frameid[] = "/right_ultrasonic";
 // otherwise turns off the LEDs if the msg contains false
 void ledSwitchCb( const std_msgs::Bool& led_switch_msg){
   // If the led_switch_msg contains true, turn on the LEDs
-  if(led_switch_msg->data)
+  if(led_switch_msg.data)
   {
     digitalWrite(LEDSwitch, HIGH);
   }
@@ -116,7 +117,7 @@ void ledSwitchCb( const std_msgs::Bool& led_switch_msg){
 // otherwise turns off the pump if the msg contains false
 void pumpSwitchCb( const std_msgs::Bool& pump_switch_msg){
   // If the pump_switch_msg contains true, turn on the pump
-  if(pump_switch_msg->data)
+  if(pump_switch_msg.data)
   {
     digitalWrite(PumpSwitch, HIGH);
   }
@@ -280,265 +281,265 @@ void publishTransform()
   broadcaster.sendTransform(t);
 }
 
-void serialCommand()
-{
-  if(Serial.available() > 0) {
-    int command = Serial.read();
-
-    switch (command) {
-      case 'f':
-        if(prevCommand != command)
-        {
-          stopPrevCommand();
-          digitalWrite(LeftMotorIn1, LOW);
-          digitalWrite(LeftMotorIn2, HIGH);  
-          digitalWrite(RightMotorIn1, HIGH);
-          digitalWrite(RightMotorIn2, LOW); 
-          // accelerate from zero to maximum speed
-          for (int i = 0; i < 128; i++)
-          {
-            analogWrite(LeftMotorEnable, i);
-            analogWrite(RightMotorEnable, i);
-            delay(20);
-          } 
-        }
-        break;
-      case 'b':
-        if(prevCommand != command)
-        {
-          stopPrevCommand();
-          digitalWrite(LeftMotorIn1, HIGH);
-          digitalWrite(LeftMotorIn2, LOW);  
-          digitalWrite(RightMotorIn1, LOW);
-          digitalWrite(RightMotorIn2, HIGH); 
-          // accelerate from zero to maximum speed
-          for (int i = 0; i < 128; i++)
-          {
-            analogWrite(LeftMotorEnable, i);
-            analogWrite(RightMotorEnable, i);
-            delay(20);
-          } 
-        }
-        break;
-      case 'l':
-        if(prevCommand != command)
-        {
-          stopPrevCommand();
-          digitalWrite(FrontMotorIn1, HIGH);
-          digitalWrite(FrontMotorIn2, LOW);  
-          digitalWrite(BackMotorIn1, LOW);
-          digitalWrite(BackMotorIn2, HIGH); 
-          // accelerate from zero to maximum speed
-          for (int i = 0; i < 128; i++)
-          {
-            analogWrite(FrontMotorEnable, i);
-            analogWrite(BackMotorEnable, i);
-            delay(20);
-          } 
-        }
-        break;
-      case 'r':
-        if(prevCommand != command)
-        {
-          stopPrevCommand();
-          digitalWrite(FrontMotorIn1, LOW);
-          digitalWrite(FrontMotorIn2, HIGH);  
-          digitalWrite(BackMotorIn1, HIGH);
-          digitalWrite(BackMotorIn2, LOW); 
-          // accelerate from zero to maximum speed
-          for (int i = 0; i < 128; i++)
-          {
-            analogWrite(FrontMotorEnable, i);
-            analogWrite(BackMotorEnable, i);
-            delay(20);
-          } 
-        break;
-        }
-      case 'p':
-        digitalWrite(PumpSwitch, HIGH);
-        break;
-      case 'o':
-        digitalWrite(PumpSwitch, LOW);
-        break;
-      case 'k':
-        digitalWrite(LEDSwitch, HIGH);
-        break;
-      case 'j':
-        digitalWrite(LEDSwitch, LOW);
-        break;
-      case 'w':
-        digitalWrite(ZGantryStepperDirection, LOW);
-        for (int i = 0; i < 3200; i++)
-        { 
-          digitalWrite(ZGantryStepperPulse, HIGH);
-          digitalWrite(ZGantryStepperPulse, LOW);
-          
-          delayMicroseconds(300);
-        }
-        break;
-      case 's':
-        digitalWrite(ZGantryStepperDirection, HIGH);
-        for (int i = 0; i < 3200; i++)
-        {         
-          digitalWrite(ZGantryStepperPulse, HIGH);
-          digitalWrite(ZGantryStepperPulse, LOW);
-          
-          delayMicroseconds(300);
-        }
-        break;
-      case 'a':
-        digitalWrite(XGantryStepperDirection, LOW);
-        for (int i = 0; i < 3200; i++)
-        {         
-          if(digitalRead(XAxisLimitSwitch) == 0)
-          {
-            digitalWrite(XGantryStepperDirection, HIGH);
-            while (digitalRead(XAxisLimitSwitch) != 1)
-            {
-              digitalWrite(XGantryStepperPulse, HIGH);
-              digitalWrite(XGantryStepperPulse, LOW);
-              
-              delayMicroseconds(300);
-            }
-            for (int i = 1; i < 300; i++)
-            {
-              digitalWrite(XGantryStepperPulse, HIGH);
-              digitalWrite(XGantryStepperPulse, LOW);
-    
-              delayMicroseconds(300);
-            }
-            break;
-          }
-          digitalWrite(XGantryStepperPulse, HIGH);
-          digitalWrite(XGantryStepperPulse, LOW);
-          
-          delayMicroseconds(300);
-        }
-        break;
-      case 'd':
-        digitalWrite(XGantryStepperDirection, HIGH);
-        for (int i = 0; i < 3200; i++)
-        {         
-          digitalWrite(XGantryStepperPulse, HIGH);
-          digitalWrite(XGantryStepperPulse, LOW);
-          
-          delayMicroseconds(300);
-        }
-        break;
-      case 'z':
-        digitalWrite(ZGantryStepperDirection, HIGH);
-        while (digitalRead(ZAxisLimitSwitch) != 0)
-        {         
-          digitalWrite(ZGantryStepperPulse, HIGH);
-          digitalWrite(ZGantryStepperPulse, LOW);
-          
-          delayMicroseconds(1000);
-        }
-        break;
-      case 'x':
-        digitalWrite(XGantryStepperDirection, LOW);
-        while (digitalRead(XAxisLimitSwitch) != 0)
-        {         
-          digitalWrite(XGantryStepperPulse, HIGH);
-          digitalWrite(XGantryStepperPulse, LOW);
-          
-          delayMicroseconds(1000);
-        }
-        digitalWrite(XGantryStepperDirection, HIGH);
-        while (digitalRead(XAxisLimitSwitch) != 1)
-        {
-          digitalWrite(XGantryStepperPulse, HIGH);
-          digitalWrite(XGantryStepperPulse, LOW);
-          
-          delayMicroseconds(1000);
-        }
-        for (int i = 1; i < 300; i++)
-        {
-          digitalWrite(XGantryStepperPulse, HIGH);
-          digitalWrite(XGantryStepperPulse, LOW);
-
-          delayMicroseconds(1000);
-        }
-        break;
-      case 'v':
-        digitalWrite(TurntableStepperDirection, LOW);
-        for (int i = 0; i < 12800; i++)
-        {         
-          digitalWrite(TurntableStepperPulse, HIGH);
-          digitalWrite(TurntableStepperPulse, LOW);
-          
-          delayMicroseconds(300);
-        }
-        break;
-      case 'c':
-        digitalWrite(TurntableStepperDirection, HIGH);
-        for (int i = 0; i < 12800; i++)
-        {         
-          digitalWrite(TurntableStepperPulse, HIGH);
-          digitalWrite(TurntableStepperPulse, LOW);
-          
-          delayMicroseconds(300);
-        }
-        break;
-
-      default:
-        stopPrevCommand();
-        digitalWrite(FrontMotorIn1, LOW);
-        digitalWrite(FrontMotorIn2, LOW);
-        digitalWrite(LeftMotorIn1, LOW);
-        digitalWrite(LeftMotorIn2, LOW); 
-        digitalWrite(RightMotorIn1, LOW);
-        digitalWrite(RightMotorIn2, LOW);
-        digitalWrite(BackMotorIn1, LOW);
-        digitalWrite(BackMotorIn2, LOW);
-        digitalWrite(PumpSwitch, LOW);
-        digitalWrite(LEDSwitch, LOW);
-    }
-    prevCommand = command;
-  }
-  readUltrasonicSensors();
-}
-
-void stopPrevCommand()
-{
-  switch (prevCommand) {
-    case 'f':
-    case 'b':
-      for (int i = 127; i >= 0; --i)
-      {
-        analogWrite(LeftMotorEnable, i);
-        analogWrite(RightMotorEnable, i);
-        delay(20);
-      } 
-      digitalWrite(LeftMotorIn1, LOW);
-      digitalWrite(LeftMotorIn2, LOW);  
-      digitalWrite(RightMotorIn1, LOW);
-      digitalWrite(RightMotorIn2, LOW);  
-      break;
-    case 'l':
-    case 'r':
-      for (int i = 127; i >= 0; --i)
-      {
-        analogWrite(FrontMotorEnable, i);
-        analogWrite(BackMotorEnable, i);
-        delay(20);
-      } 
-      digitalWrite(FrontMotorIn1, LOW);
-      digitalWrite(FrontMotorIn2, LOW);  
-      digitalWrite(BackMotorIn1, LOW);
-      digitalWrite(BackMotorIn2, LOW);  
-      break;
-    default:
-      digitalWrite(FrontMotorIn1, LOW);
-      digitalWrite(FrontMotorIn2, LOW);
-      digitalWrite(LeftMotorIn1, LOW);
-      digitalWrite(LeftMotorIn2, LOW); 
-      digitalWrite(RightMotorIn1, LOW);
-      digitalWrite(RightMotorIn2, LOW);
-      digitalWrite(BackMotorIn1, LOW);
-      digitalWrite(BackMotorIn2, LOW);
-    }
-}
+//void serialCommand()
+//{
+//  if(Serial.available() > 0) {
+//    int command = Serial.read();
+//
+//    switch (command) {
+//      case 'f':
+//        if(prevCommand != command)
+//        {
+//          stopPrevCommand();
+//          digitalWrite(LeftMotorIn1, LOW);
+//          digitalWrite(LeftMotorIn2, HIGH);  
+//          digitalWrite(RightMotorIn1, HIGH);
+//          digitalWrite(RightMotorIn2, LOW); 
+//          // accelerate from zero to maximum speed
+//          for (int i = 0; i < 128; i++)
+//          {
+//            analogWrite(LeftMotorEnable, i);
+//            analogWrite(RightMotorEnable, i);
+//            delay(20);
+//          } 
+//        }
+//        break;
+//      case 'b':
+//        if(prevCommand != command)
+//        {
+//          stopPrevCommand();
+//          digitalWrite(LeftMotorIn1, HIGH);
+//          digitalWrite(LeftMotorIn2, LOW);  
+//          digitalWrite(RightMotorIn1, LOW);
+//          digitalWrite(RightMotorIn2, HIGH); 
+//          // accelerate from zero to maximum speed
+//          for (int i = 0; i < 128; i++)
+//          {
+//            analogWrite(LeftMotorEnable, i);
+//            analogWrite(RightMotorEnable, i);
+//            delay(20);
+//          } 
+//        }
+//        break;
+//      case 'l':
+//        if(prevCommand != command)
+//        {
+//          stopPrevCommand();
+//          digitalWrite(FrontMotorIn1, HIGH);
+//          digitalWrite(FrontMotorIn2, LOW);  
+//          digitalWrite(BackMotorIn1, LOW);
+//          digitalWrite(BackMotorIn2, HIGH); 
+//          // accelerate from zero to maximum speed
+//          for (int i = 0; i < 128; i++)
+//          {
+//            analogWrite(FrontMotorEnable, i);
+//            analogWrite(BackMotorEnable, i);
+//            delay(20);
+//          } 
+//        }
+//        break;
+//      case 'r':
+//        if(prevCommand != command)
+//        {
+//          stopPrevCommand();
+//          digitalWrite(FrontMotorIn1, LOW);
+//          digitalWrite(FrontMotorIn2, HIGH);  
+//          digitalWrite(BackMotorIn1, HIGH);
+//          digitalWrite(BackMotorIn2, LOW); 
+//          // accelerate from zero to maximum speed
+//          for (int i = 0; i < 128; i++)
+//          {
+//            analogWrite(FrontMotorEnable, i);
+//            analogWrite(BackMotorEnable, i);
+//            delay(20);
+//          } 
+//        break;
+//        }
+//      case 'p':
+//        digitalWrite(PumpSwitch, HIGH);
+//        break;
+//      case 'o':
+//        digitalWrite(PumpSwitch, LOW);
+//        break;
+//      case 'k':
+//        digitalWrite(LEDSwitch, HIGH);
+//        break;
+//      case 'j':
+//        digitalWrite(LEDSwitch, LOW);
+//        break;
+//      case 'w':
+//        digitalWrite(ZGantryStepperDirection, LOW);
+//        for (int i = 0; i < 3200; i++)
+//        { 
+//          digitalWrite(ZGantryStepperPulse, HIGH);
+//          digitalWrite(ZGantryStepperPulse, LOW);
+//          
+//          delayMicroseconds(300);
+//        }
+//        break;
+//      case 's':
+//        digitalWrite(ZGantryStepperDirection, HIGH);
+//        for (int i = 0; i < 3200; i++)
+//        {         
+//          digitalWrite(ZGantryStepperPulse, HIGH);
+//          digitalWrite(ZGantryStepperPulse, LOW);
+//          
+//          delayMicroseconds(300);
+//        }
+//        break;
+//      case 'a':
+//        digitalWrite(XGantryStepperDirection, LOW);
+//        for (int i = 0; i < 3200; i++)
+//        {         
+//          if(digitalRead(XAxisLimitSwitch) == 0)
+//          {
+//            digitalWrite(XGantryStepperDirection, HIGH);
+//            while (digitalRead(XAxisLimitSwitch) != 1)
+//            {
+//              digitalWrite(XGantryStepperPulse, HIGH);
+//              digitalWrite(XGantryStepperPulse, LOW);
+//              
+//              delayMicroseconds(300);
+//            }
+//            for (int i = 1; i < 300; i++)
+//            {
+//              digitalWrite(XGantryStepperPulse, HIGH);
+//              digitalWrite(XGantryStepperPulse, LOW);
+//    
+//              delayMicroseconds(300);
+//            }
+//            break;
+//          }
+//          digitalWrite(XGantryStepperPulse, HIGH);
+//          digitalWrite(XGantryStepperPulse, LOW);
+//          
+//          delayMicroseconds(300);
+//        }
+//        break;
+//      case 'd':
+//        digitalWrite(XGantryStepperDirection, HIGH);
+//        for (int i = 0; i < 3200; i++)
+//        {         
+//          digitalWrite(XGantryStepperPulse, HIGH);
+//          digitalWrite(XGantryStepperPulse, LOW);
+//          
+//          delayMicroseconds(300);
+//        }
+//        break;
+//      case 'z':
+//        digitalWrite(ZGantryStepperDirection, HIGH);
+//        while (digitalRead(ZAxisLimitSwitch) != 0)
+//        {         
+//          digitalWrite(ZGantryStepperPulse, HIGH);
+//          digitalWrite(ZGantryStepperPulse, LOW);
+//          
+//          delayMicroseconds(1000);
+//        }
+//        break;
+//      case 'x':
+//        digitalWrite(XGantryStepperDirection, LOW);
+//        while (digitalRead(XAxisLimitSwitch) != 0)
+//        {         
+//          digitalWrite(XGantryStepperPulse, HIGH);
+//          digitalWrite(XGantryStepperPulse, LOW);
+//          
+//          delayMicroseconds(1000);
+//        }
+//        digitalWrite(XGantryStepperDirection, HIGH);
+//        while (digitalRead(XAxisLimitSwitch) != 1)
+//        {
+//          digitalWrite(XGantryStepperPulse, HIGH);
+//          digitalWrite(XGantryStepperPulse, LOW);
+//          
+//          delayMicroseconds(1000);
+//        }
+//        for (int i = 1; i < 300; i++)
+//        {
+//          digitalWrite(XGantryStepperPulse, HIGH);
+//          digitalWrite(XGantryStepperPulse, LOW);
+//
+//          delayMicroseconds(1000);
+//        }
+//        break;
+//      case 'v':
+//        digitalWrite(TurntableStepperDirection, LOW);
+//        for (int i = 0; i < 12800; i++)
+//        {         
+//          digitalWrite(TurntableStepperPulse, HIGH);
+//          digitalWrite(TurntableStepperPulse, LOW);
+//          
+//          delayMicroseconds(300);
+//        }
+//        break;
+//      case 'c':
+//        digitalWrite(TurntableStepperDirection, HIGH);
+//        for (int i = 0; i < 12800; i++)
+//        {         
+//          digitalWrite(TurntableStepperPulse, HIGH);
+//          digitalWrite(TurntableStepperPulse, LOW);
+//          
+//          delayMicroseconds(300);
+//        }
+//        break;
+//
+//      default:
+//        stopPrevCommand();
+//        digitalWrite(FrontMotorIn1, LOW);
+//        digitalWrite(FrontMotorIn2, LOW);
+//        digitalWrite(LeftMotorIn1, LOW);
+//        digitalWrite(LeftMotorIn2, LOW); 
+//        digitalWrite(RightMotorIn1, LOW);
+//        digitalWrite(RightMotorIn2, LOW);
+//        digitalWrite(BackMotorIn1, LOW);
+//        digitalWrite(BackMotorIn2, LOW);
+//        digitalWrite(PumpSwitch, LOW);
+//        digitalWrite(LEDSwitch, LOW);
+//    }
+//    prevCommand = command;
+//  }
+//  readUltrasonicSensors();
+//}
+//
+//void stopPrevCommand()
+//{
+//  switch (prevCommand) {
+//    case 'f':
+//    case 'b':
+//      for (int i = 127; i >= 0; --i)
+//      {
+//        analogWrite(LeftMotorEnable, i);
+//        analogWrite(RightMotorEnable, i);
+//        delay(20);
+//      } 
+//      digitalWrite(LeftMotorIn1, LOW);
+//      digitalWrite(LeftMotorIn2, LOW);  
+//      digitalWrite(RightMotorIn1, LOW);
+//      digitalWrite(RightMotorIn2, LOW);  
+//      break;
+//    case 'l':
+//    case 'r':
+//      for (int i = 127; i >= 0; --i)
+//      {
+//        analogWrite(FrontMotorEnable, i);
+//        analogWrite(BackMotorEnable, i);
+//        delay(20);
+//      } 
+//      digitalWrite(FrontMotorIn1, LOW);
+//      digitalWrite(FrontMotorIn2, LOW);  
+//      digitalWrite(BackMotorIn1, LOW);
+//      digitalWrite(BackMotorIn2, LOW);  
+//      break;
+//    default:
+//      digitalWrite(FrontMotorIn1, LOW);
+//      digitalWrite(FrontMotorIn2, LOW);
+//      digitalWrite(LeftMotorIn1, LOW);
+//      digitalWrite(LeftMotorIn2, LOW); 
+//      digitalWrite(RightMotorIn1, LOW);
+//      digitalWrite(RightMotorIn2, LOW);
+//      digitalWrite(BackMotorIn1, LOW);
+//      digitalWrite(BackMotorIn2, LOW);
+//    }
+//}
 
 void readUltrasonicSensors(){
   // Set the trigger to Low for a little while initially
