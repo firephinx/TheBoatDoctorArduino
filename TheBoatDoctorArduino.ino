@@ -1,3 +1,4 @@
+// ARDUINO MEGA PIN DEFINITIONS
 //#define 0
 //#define 1
 #define LeftMotorEncoderHallA 2 // Interrupt Pin
@@ -53,12 +54,108 @@
 //#define 52
 //#define 53
 
-int prevCommand = 0;
+// ROS SERIAL INCLUDES
+#include <ros.h> // ROS Serial
+#include <ros/time.h> // ROS time for publishing messages
+#include <tf/transform_broadcaster.h> // Transform Broadcaster for TF
+#include <std_msgs/Empty.h> // Empty msg for stopping everything
+#include <std_msgs/Bool.h> // Bool msg for Pump and LED switches
+#include <sensor_msgs/Range.h> // Sensor_msgs Range message for Ultrasonic Sensors
+
+// IMU INCLUDES
+#include <Wire.h> // I2C library included for SparkFunLSM9DS1
+#include <SparkFunLSM9DS1.h> // SparkFun LSM9DS1 library
+
+// IMU DEFINES
+// SDO_XM and SDO_G are both pulled high, so our addresses are:
+#define LSM9DS1_M   0x1E // Would be 0x1C if SDO_M is LOW
+#define LSM9DS1_AG  0x6B // Would be 0x6A if SDO_AG is LOW
+
+// ROS Globals
+ros::NodeHandle nh;
+geometry_msgs::TransformStamped t;
+tf::TransformBroadcaster broadcaster;
+
+sensor_msgs::Range front_ultrasonic_range_msg;
+sensor_msgs::Range right_ultrasonic_range_msg;
+ros::Publisher front_ultrasonic_range_pub( "/TheBoatDoctor/front/ultrasonic", &front_ultrasonic_range_msg);
+ros::Publisher right_ultrasonic_range_pub( "/TheBoatDoctor/right/ultrasonic", &right_ultrasonic_range_msg);
+
+char base_link[] = "/base_link";
+char odom[] = "/odom";
+
+// IMU Globals
+LSM9DS1 imu;
+
+// Ultrasonic Sensor Globals
+long front_ultrasonic_range_duration;
+long right_ultrasonic_range_duration;
+float front_ultrasonic_range_distance;
+float right_ultrasonic_range_distance;
+char front_ultrasonic_frameid[] = "/front_ultrasonic";
+char right_ultrasonic_frameid[] = "/right_ultrasonic";
+
+// LED Switch Callback
+// Turns on the LEDs if the msg contains true, 
+// otherwise turns off the LEDs if the msg contains false
+void ledSwitchCb( const std_msgs::Bool& led_switch_msg){
+  // If the led_switch_msg contains true, turn on the LEDs
+  if(led_switch_msg->data)
+  {
+    digitalWrite(LEDSwitch, HIGH);
+  }
+  // Otherwise turn off the LEDs
+  else
+  {
+    digitalWrite(LEDSwitch, LOW);
+  }
+}
+
+// Pump Switch Callback
+// Turns on the pump if the msg contains true, 
+// otherwise turns off the pump if the msg contains false
+void pumpSwitchCb( const std_msgs::Bool& pump_switch_msg){
+  // If the pump_switch_msg contains true, turn on the pump
+  if(pump_switch_msg->data)
+  {
+    digitalWrite(PumpSwitch, HIGH);
+  }
+  // Otherwise turn off the pump
+  else
+  {
+    digitalWrite(PumpSwitch, LOW);
+  }
+}
+
+// Stop Command Callback
+// Immediately halts everything by setting all the motor control pins to LOW
+void stopCb( const std_msgs::Empty& stop_msg){
+  digitalWrite(FrontMotorEnable, LOW);
+  digitalWrite(FrontMotorIn1, LOW);
+  digitalWrite(FrontMotorIn2, LOW);
+
+  digitalWrite(LeftMotorEnable, LOW);
+  digitalWrite(LeftMotorIn1, LOW);
+  digitalWrite(LeftMotorIn2, LOW);
+
+  digitalWrite(BackMotorEnable, LOW); 
+  digitalWrite(BackMotorIn1, LOW);
+  digitalWrite(BackMotorIn2, LOW);
+
+  digitalWrite(RightMotorEnable, LOW);
+  digitalWrite(RightMotorIn1, LOW);
+  digitalWrite(RightMotorIn2, LOW);
+  
+  digitalWrite(PumpSwitch, LOW);
+  digitalWrite(LEDSwitch, LOW);
+}
+
+ros::Subscriber<std_msgs::Bool> led_switch_sub("/TheBoatDoctor/LED_Switch", &ledSwitchCb );
+ros::Subscriber<std_msgs::Bool> pump_switch_sub("/TheBoatDoctor/Pump_Switch", &pumpSwitchCb );
+ros::Subscriber<std_msgs::Empty> stop_sub("/TheBoatDoctor/Stop", &stopCb );
 
 void setup()
-{
-  Serial.begin(9600); // opens serial port, sets data rate to 9600 bps
-  
+{ 
   // set all the base dc motor control pins to outputs
   pinMode(FrontMotorEnable, OUTPUT);
   pinMode(FrontMotorIn1, OUTPUT);
@@ -101,7 +198,17 @@ void setup()
   pinMode(BackMotorEncoderHallB, INPUT);
   pinMode(RightMotorEncoderHallB, INPUT);
 
-  // TODO: set IMU pins here
+  // IMU setup and startup code
+  imu.settings.device.commInterface = IMU_MODE_I2C; // Set mode to I2C
+  imu.settings.device.mAddress = LSM9DS1_M; // Set mag address to 0x1E
+  imu.settings.device.agAddress = LSM9DS1_AG; // Set ag address to 0x6B
+  if (!imu.begin())
+  {
+      Serial.println("Failed to communicate with LSM9DS1.");
+      Serial.println("Looping to infinity.");
+      while (1)
+        ;
+  }
 
   // set ultrasonic sensor trigger pins to output and echo pins to input
   pinMode(FrontUltrasonicTrigger, OUTPUT);
@@ -123,6 +230,54 @@ void setup()
   digitalWrite(TurntableStepperEnable, LOW);
   digitalWrite(XGantryStepperEnable, LOW);
   digitalWrite(ZGantryStepperEnable, LOW);
+
+  // ROS Serial Initialization Code
+
+  // Initialize Node
+  nh.initNode();
+
+  // Initialize tf broadcaster
+  broadcaster.init(nh);
+  
+  // Advertise topics
+  nh.advertise(front_ultrasonic_range_pub);
+  nh.advertise(right_ultrasonic_range_pub);
+
+  // Subscribe to topics
+  nh.subscribe(led_switch_sub);
+  nh.subscribe(pump_switch_sub);
+  nh.subscribe(stop_sub);
+
+  // Ultrasonic Sensor Setup Code
+  front_ultrasonic_range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
+  front_ultrasonic_range_msg.header.frame_id = front_ultrasonic_frameid;
+  front_ultrasonic_range_msg.field_of_view = 0.1;  // fake
+  front_ultrasonic_range_msg.min_range = 0.0;
+  front_ultrasonic_range_msg.max_range = 6.47;
+
+  right_ultrasonic_range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
+  right_ultrasonic_range_msg.header.frame_id = right_ultrasonic_frameid;
+  right_ultrasonic_range_msg.field_of_view = 0.1;  // fake
+  right_ultrasonic_range_msg.min_range = 0.0;
+  right_ultrasonic_range_msg.max_range = 6.47;
+
+}
+
+void updateTransform()
+{
+  t.header.frame_id = odom;
+  t.child_frame_id = base_link;
+  t.transform.translation.x = 1.0; 
+  t.transform.rotation.x = 0.0;
+  t.transform.rotation.y = 0.0; 
+  t.transform.rotation.z = 0.0; 
+  t.transform.rotation.w = 1.0;  
+  t.header.stamp = nh.now();
+}
+
+void publishTransform()
+{
+  broadcaster.sendTransform(t);
 }
 
 void serialCommand()
@@ -386,9 +541,6 @@ void stopPrevCommand()
 }
 
 void readUltrasonicSensors(){
-  long durationForward;
-  float distanceForward;
-
   // Set the trigger to Low for a little while initially
   digitalWrite(FrontUltrasonicTrigger, LOW);
   delayMicroseconds(3);
@@ -398,15 +550,12 @@ void readUltrasonicSensors(){
   // Set the trigger back to low
   digitalWrite(FrontUltrasonicTrigger, LOW);
 
-  // Wait for the echo 
-  durationForward = pulseIn(FrontUltrasonicEcho, HIGH, 30000);
+  // Wait for the echo with a timeout of 30ms 
+  front_ultrasonic_range_duration = pulseIn(FrontUltrasonicEcho, HIGH, 30000);
   
   // Find the distance in cm based on the duration
   // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
-  distanceForward = durationForward / 58;
-  
-  long durationRight;
-  float distanceRight;
+  front_ultrasonic_range_distance = (front_ultrasonic_range_duration / 2) / 29.1;
 
   // Set the trigger to Low for a little while initially
   digitalWrite(RightUltrasonicTrigger, LOW);
@@ -417,40 +566,32 @@ void readUltrasonicSensors(){
   // Set the trigger back to low
   digitalWrite(RightUltrasonicTrigger, LOW);
 
-  // Wait for the echo 
-  durationRight = pulseIn(RightUltrasonicEcho, HIGH, 30000);
+  // Wait for the echo with a timeout of 30ms
+  right_ultrasonic_range_duration = pulseIn(RightUltrasonicEcho, HIGH, 30000);
   
   // Find the distance in cm based on the duration
   // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
-  distanceRight = durationRight / 58;
-  
-  if (distanceRight >= 200 || distanceRight <= 0){
-    Serial.println("Out of range in X direction");
-    if (distanceForward >= 200 || distanceForward <= 0){
-      Serial.println("Out of range in Y direction");
-    }
-    else
-    {
-      Serial.print(distanceForward);
-      Serial.println(" cm in y");
-    }
-  }
-  else if (distanceForward >= 200 || distanceForward <= 0){
-    Serial.print(distanceRight);
-    Serial.println(" cm in x");
-    Serial.println("Out of range in Y direction");
-  }
-  else {
-    Serial.print("(");
-    Serial.print(distanceRight);
-    Serial.print(",");
-    Serial.print(distanceForward);
-    Serial.println(")");
-  }
-  delay(100);
+  right_ultrasonic_range_distance = right_ultrasonic_range_duration / 58;
+}
+
+void publishUltrasonicRangeMsgs()
+{
+  front_ultrasonic_range_msg.range = front_ultrasonic_range_distance / 100;
+  front_ultrasonic_range_msg.header.stamp = nh.now();
+  right_ultrasonic_range_msg.range = right_ultrasonic_range_distance / 100;
+  right_ultrasonic_range_msg.header.stamp = nh.now();
+  front_ultrasonic_range_pub.publish(&front_ultrasonic_range_msg);
+  right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
 }
 
 void loop()
 {
-  serialCommand();
+  updateTransform();
+  publishTransform();
+
+  readUltrasonicSensors();
+  publishUltrasonicRangeMsgs();
+
+  nh.spinOnce();
+  delay(1);
 }
