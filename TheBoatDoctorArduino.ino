@@ -90,6 +90,12 @@ char base_link[] = "/base_link";
 char odom[] = "/odom";
 
 // IMU Globals
+// Earth's magnetic field varies by location. Add or subtract 
+// a declination to get a more accurate heading. Calculate 
+// your's here:
+// http://www.ngdc.noaa.gov/geomag-web/#declination
+#define DECLINATION 9.20 // Declination (degrees) in Pittsburgh, PA.
+
 LSM9DS1 imu;
 float heading;
 
