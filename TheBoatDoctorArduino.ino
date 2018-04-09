@@ -61,6 +61,7 @@
 #include <std_msgs/Empty.h> // Empty msg for stopping everything
 #include <std_msgs/Bool.h> // Bool msg for Pump and LED switches
 #include <sensor_msgs/Range.h> // Sensor_msgs Range message for Ultrasonic Sensors
+#include <sensor_msgs/Imu.h> // Sensor_msgs Imu message for IMU
 
 // IMU INCLUDES
 #include <SPI.h> // SPI library included for SparkFunLSM9DS1
@@ -82,11 +83,15 @@ sensor_msgs::Range right_ultrasonic_range_msg;
 ros::Publisher front_ultrasonic_range_pub( "/TheBoatDoctor/front/ultrasonic", &front_ultrasonic_range_msg);
 ros::Publisher right_ultrasonic_range_pub( "/TheBoatDoctor/right/ultrasonic", &right_ultrasonic_range_msg);
 
+sensor_msgs::Imu imu_msg;
+ros::Publisher imu_pub( "/TheBoatDoctor/imu", &imu_msg);
+
 char base_link[] = "/base_link";
 char odom[] = "/odom";
 
 // IMU Globals
 LSM9DS1 imu;
+float heading;
 
 // Ultrasonic Sensor Globals
 long front_ultrasonic_range_duration;
@@ -203,6 +208,9 @@ void setup()
   imu.settings.device.commInterface = IMU_MODE_I2C; // Set mode to I2C
   imu.settings.device.mAddress = LSM9DS1_M; // Set mag address to 0x1E
   imu.settings.device.agAddress = LSM9DS1_AG; // Set ag address to 0x6B
+  imu.settings.accel.scale = 8; // Set accel range to +/-8g
+  imu.settings.gyro.scale = 2000; // Set gyro range to +/-2000dps
+  imu.settings.mag.scale = 4; // Set mag range to +/-4Gs
   if (!imu.begin())
   {
       Serial.println("Failed to communicate with LSM9DS1.");
@@ -243,6 +251,7 @@ void setup()
   // Advertise topics
   nh.advertise(front_ultrasonic_range_pub);
   nh.advertise(right_ultrasonic_range_pub);
+  nh.advertise(imu_pub);
 
   // Subscribe to topics
   nh.subscribe(led_switch_sub);
@@ -252,16 +261,33 @@ void setup()
   // Ultrasonic Sensor Setup Code
   front_ultrasonic_range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
   front_ultrasonic_range_msg.header.frame_id = front_ultrasonic_frameid;
-  front_ultrasonic_range_msg.field_of_view = 0.1;  // fake
+  front_ultrasonic_range_msg.field_of_view = 0.2618;  // 15 degrees field of view
   front_ultrasonic_range_msg.min_range = 0.0;
-  front_ultrasonic_range_msg.max_range = 6.47;
+  front_ultrasonic_range_msg.max_range = 4;
 
   right_ultrasonic_range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
   right_ultrasonic_range_msg.header.frame_id = right_ultrasonic_frameid;
-  right_ultrasonic_range_msg.field_of_view = 0.1;  // fake
+  right_ultrasonic_range_msg.field_of_view = 0.1;  // 15 degrees field of view
   right_ultrasonic_range_msg.min_range = 0.0;
-  right_ultrasonic_range_msg.max_range = 6.47;
+  right_ultrasonic_range_msg.max_range = 4;
 
+  // IMU Setup Code
+
+  // From datasheet, 1 gauss std deviation
+
+  // From datasheet, 30 degrees per second std deviation
+  // 30 degrees per second => 0.5236 radians per second
+  // Variance = std deviation ^ 2 = 0.5236 * 0.5236 ~ 0.275
+  imu_msg.angular_velocity_covariance[0] = 0.275;
+  imu_msg.angular_velocity_covariance[4] = 0.275;
+  imu_msg.angular_velocity_covariance[8] = 0.275;
+
+  // From datasheet, 90 mg std deviation
+  // 90 mg => 0.882598 m / s ^ 2
+  // Variance = std deviation ^ 2 = 0.882598 * 0.882598 ~ 0.777
+  imu_msg.linear_acceleration_covariance[0] = 0.777;
+  imu_msg.linear_acceleration_covariance[4] = 0.777;
+  imu_msg.linear_acceleration_covariance[8] = 0.777;
 }
 
 void updateTransform()
@@ -279,6 +305,46 @@ void updateTransform()
 void publishTransform()
 {
   broadcaster.sendTransform(t);
+}
+
+void updateIMU()
+{
+  imu.readMag();
+  imu.readGyro();
+  imu.readAccel();
+  determineHeading(imu.ax, imu.ay, imu.az, 
+                  -imu.my, -imu.mx, imu.mz);
+}
+
+// Calculate heading.
+// Heading calculations taken from this app note:
+// http://www51.honeywell.com/aero/common/documents/myaerospacecatalog-documents/Defense_Brochures-documents/Magnetic__Literature_Application_notes-documents/AN203_Compass_Heading_Using_Magnetometers.pdf
+void determineHeading(float ax, float ay, float az, float mx, float my, float mz)
+{
+  if (my == 0)
+    heading = (mx < 0) ? PI : 0;
+  else
+    heading = atan2(mx, my);
+    
+  heading -= DECLINATION * PI / 180;
+  
+  if (heading > PI) heading -= (2 * PI);
+  else if (heading < -PI) heading += (2 * PI);
+  else if (heading < 0) heading += 2 * PI;
+}
+
+void publishIMU()
+{
+  imu_msg.header.stamp = nh.now();
+  imu_msg.orientation.w = cos(heading / 2);
+  imu_msg.orientation.z = sin(heading / 2);
+  imu_msg.angular_velocity.x = imu.calcGyro(imu.gx) * 0.0174533;
+  imu_msg.angular_velocity.y = imu.calcGyro(imu.gy) * 0.0174533;
+  imu_msg.angular_velocity.z = (imu.calcGyro(imu.gz) + 6) * 0.0174533;
+  imu_msg.linear_acceleration.x = imu.calcAccel(imu.ax) * 9.80665;
+  imu_msg.linear_acceleration.y = imu.calcAccel(imu.ay) * 9.80665;
+  imu_msg.linear_acceleration.z = imu.calcAccel(imu.az) * 9.80665;
+  imu_pub.publish(&imu_msg);
 }
 
 //void serialCommand()
@@ -551,8 +617,8 @@ void readUltrasonicSensors(){
   // Set the trigger back to low
   digitalWrite(FrontUltrasonicTrigger, LOW);
 
-  // Wait for the echo with a timeout of 30ms 
-  front_ultrasonic_range_duration = pulseIn(FrontUltrasonicEcho, HIGH, 30000);
+  // Wait for the echo with a timeout of 23.28ms 
+  front_ultrasonic_range_duration = pulseIn(FrontUltrasonicEcho, HIGH, 23280);
   
   // Find the distance in cm based on the duration
   // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
@@ -567,12 +633,12 @@ void readUltrasonicSensors(){
   // Set the trigger back to low
   digitalWrite(RightUltrasonicTrigger, LOW);
 
-  // Wait for the echo with a timeout of 30ms
-  right_ultrasonic_range_duration = pulseIn(RightUltrasonicEcho, HIGH, 30000);
+  // Wait for the echo with a timeout of 23.28ms
+  right_ultrasonic_range_duration = pulseIn(RightUltrasonicEcho, HIGH, 23280);
   
   // Find the distance in cm based on the duration
   // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
-  right_ultrasonic_range_distance = right_ultrasonic_range_duration / 58;
+  right_ultrasonic_range_distance = (right_ultrasonic_range_duration / 2) / 29.1;
 }
 
 void publishUltrasonicRangeMsgs()
@@ -590,9 +656,12 @@ void loop()
   updateTransform();
   publishTransform();
 
+  updateIMU();
+  publishIMU();
+
   readUltrasonicSensors();
   publishUltrasonicRangeMsgs();
 
   nh.spinOnce();
-  delay(1);
+  delay(10);
 }
