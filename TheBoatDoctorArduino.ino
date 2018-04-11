@@ -330,10 +330,10 @@ void setup()
   pinMode(RightMotorEncoderHallB, INPUT_PULLUP);
 
   // attach interrupts to all motor encoder hall A pins
-  attachInterrupt(digitalPinToInterrupt(FrontMotorEncoderHallA), front_motor_hallA_detect, CHANGE); //Initialize the interrupt pin
-  attachInterrupt(digitalPinToInterrupt(LeftMotorEncoderHallA), left_motor_hallA_detect, CHANGE); //Initialize the interrupt pin
-  attachInterrupt(digitalPinToInterrupt(BackMotorEncoderHallA), back_motor_hallA_detect, CHANGE); //Initialize the interrupt pin
-  attachInterrupt(digitalPinToInterrupt(RightMotorEncoderHallA), right_motor_hallA_detect, CHANGE); //Initialize the interrupt pin
+  attachInterrupt(1, front_motor_hallA_detect, CHANGE); //Initialize the interrupt pin digitalPinToInterrupt(FrontMotorEncoderHallA) = 1
+  attachInterrupt(0, left_motor_hallA_detect, CHANGE); //Initialize the interrupt pin digitalPinToInterrupt(LeftMotorEncoderHallA) = 0
+  attachInterrupt(5, back_motor_hallA_detect, CHANGE); //Initialize the interrupt pin digitalPinToInterrupt(BackMotorEncoderHallA) = 5
+  attachInterrupt(4, right_motor_hallA_detect, CHANGE); //Initialize the interrupt pin digitalPinToInterrupt(RightMotorEncoderHallA) = 4
 
   // IMU setup and startup code
   imu.settings.device.commInterface = IMU_MODE_I2C; // Set mode to I2C
