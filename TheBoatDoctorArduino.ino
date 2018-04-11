@@ -104,7 +104,7 @@ long front_motor_encoder_count = 0;
 long left_motor_encoder_count = 0;
 long back_motor_encoder_count = 0;
 long right_motor_encoder_count = 0;
-const float wheel_diameter = 4.0;
+const float wheel_diameter = 0.1016; // 4in wheels = 0.1016m
 const int gear_ratio = 131;
 const float motor_rpm = 80.0;
 const float distance_between_wheels = 0.33; // Guessing that there is around 0.33m (13") between each pair of wheels
@@ -221,7 +221,7 @@ void cmdPosCallback(const geometry_msgs::Pose2D& pose_2d_msg)
   float desired_y = pose_2d_msg.y;
   float desired_theta = pose_2d_msg.theta;
 
-  moveBase(desired_x - current_x, desired_y - current_y);
+  moveBase(desired_x, desired_y, desired_x - current_x, desired_y - current_y);
 }
 
 void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
@@ -650,7 +650,7 @@ void publishIMU()
   imu_pub.publish(&imu_msg);
 }
 
-void moveBase(float x_dist, float y_dist)
+void moveBase(float desired_x, float desired_y, float x_dist, float y_dist)
 {
   int current_front_motor_encoder_count = front_motor_encoder_count;
   int current_left_motor_encoder_count = left_motor_encoder_count;
@@ -668,24 +668,28 @@ void moveBase(float x_dist, float y_dist)
   if (num_x_encoder_counts > 0)
   {
     // Going Backward
-    digitalWrite(LeftMotorIn1, HIGH);
-    digitalWrite(LeftMotorIn2, LOW);  
-    digitalWrite(RightMotorIn1, LOW);
-    digitalWrite(RightMotorIn2, HIGH); 
+    digitalWrite(LeftMotorIn1, LOW);
+    digitalWrite(LeftMotorIn2, HIGH);  
+    digitalWrite(RightMotorIn1, HIGH);
+    digitalWrite(RightMotorIn2, LOW);
 
     int motor_speed = 0;
     while(left_motor_encoder_count > target_left_motor_encoder_count && 
           right_motor_encoder_count < target_right_motor_encoder_count &&
+          front_ultrasonic_range_distance < desired_x && 
           motor_speed < 255)
     {
       analogWrite(LeftMotorEnable, motor_speed);
       analogWrite(RightMotorEnable, motor_speed);
       motor_speed++;
+      readUltrasonicSensors();
       delay(20);
     }
     while(left_motor_encoder_count > target_left_motor_encoder_count && 
-          right_motor_encoder_count < target_right_motor_encoder_count)
+          right_motor_encoder_count < target_right_motor_encoder_count &&
+          front_ultrasonic_range_distance < desired_x)
     {
+      readUltrasonicSensors();
       delay(20);
     }
     while(motor_speed > 0)
@@ -693,30 +697,35 @@ void moveBase(float x_dist, float y_dist)
       analogWrite(LeftMotorEnable, motor_speed);
       analogWrite(RightMotorEnable, motor_speed);
       motor_speed--;
+      readUltrasonicSensors();
       delay(20);
     } 
   }
   else
   {
     // Going Forward
-    digitalWrite(LeftMotorIn1, LOW);
-    digitalWrite(LeftMotorIn2, HIGH);  
-    digitalWrite(RightMotorIn1, HIGH);
-    digitalWrite(RightMotorIn2, LOW); 
+    digitalWrite(LeftMotorIn1, HIGH);
+    digitalWrite(LeftMotorIn2, LOW);  
+    digitalWrite(RightMotorIn1, LOW);
+    digitalWrite(RightMotorIn2, HIGH);  
 
     int motor_speed = 0;
     while(left_motor_encoder_count < target_left_motor_encoder_count && 
           right_motor_encoder_count > target_right_motor_encoder_count &&
+          front_ultrasonic_range_distance > desired_x && 
           motor_speed < 255)
     {
       analogWrite(LeftMotorEnable, motor_speed);
       analogWrite(RightMotorEnable, motor_speed);
       motor_speed++;
+      readUltrasonicSensors();
       delay(20);
     }
     while(left_motor_encoder_count < target_left_motor_encoder_count && 
-          right_motor_encoder_count > target_right_motor_encoder_count)
+          right_motor_encoder_count > target_right_motor_encoder_count &&
+          front_ultrasonic_range_distance > desired_x)
     {
+      readUltrasonicSensors();
       delay(20);
     }
     while(motor_speed > 0)
@@ -724,6 +733,7 @@ void moveBase(float x_dist, float y_dist)
       analogWrite(LeftMotorEnable, motor_speed);
       analogWrite(RightMotorEnable, motor_speed);
       motor_speed--;
+      readUltrasonicSensors();
       delay(20);
     }
   }
@@ -739,16 +749,20 @@ void moveBase(float x_dist, float y_dist)
     int motor_speed = 0;
     while(front_motor_encoder_count > target_front_motor_encoder_count && 
           back_motor_encoder_count < target_back_motor_encoder_count &&
+          right_ultrasonic_range_distance < desired_y && 
           motor_speed < 255)
     {
       analogWrite(FrontMotorEnable, motor_speed);
       analogWrite(BackMotorEnable, motor_speed);
       motor_speed++;
+      readUltrasonicSensors();
       delay(20);
     }
     while(front_motor_encoder_count > target_front_motor_encoder_count && 
-          back_motor_encoder_count < target_back_motor_encoder_count)
+          back_motor_encoder_count < target_back_motor_encoder_count && 
+          right_ultrasonic_range_distance < desired_y)
     {
+      readUltrasonicSensors();
       delay(20);
     }
     while(motor_speed > 0)
@@ -756,6 +770,7 @@ void moveBase(float x_dist, float y_dist)
       analogWrite(FrontMotorEnable, motor_speed);
       analogWrite(BackMotorEnable, motor_speed);
       motor_speed--;
+      readUltrasonicSensors();
       delay(20);
     }
   }
@@ -770,16 +785,20 @@ void moveBase(float x_dist, float y_dist)
     int motor_speed = 0;
     while(front_motor_encoder_count < target_front_motor_encoder_count && 
           back_motor_encoder_count > target_back_motor_encoder_count &&
+          right_ultrasonic_range_distance > desired_y &&
           motor_speed < 255)
     {
       analogWrite(FrontMotorEnable, motor_speed);
       analogWrite(BackMotorEnable, motor_speed);
       motor_speed++;
+      readUltrasonicSensors();
       delay(20);
     }
     while(front_motor_encoder_count < target_front_motor_encoder_count && 
-          back_motor_encoder_count > target_back_motor_encoder_count)
+          back_motor_encoder_count > target_back_motor_encoder_count &&
+          right_ultrasonic_range_distance > desired_y)
     {
+      readUltrasonicSensors();
       delay(20);
     }
     while(motor_speed > 0)
@@ -787,6 +806,7 @@ void moveBase(float x_dist, float y_dist)
       analogWrite(FrontMotorEnable, motor_speed);
       analogWrite(BackMotorEnable, motor_speed);
       motor_speed--;
+      readUltrasonicSensors();
       delay(20);
     }
   }
