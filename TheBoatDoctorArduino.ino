@@ -236,6 +236,7 @@ void front_motor_hallA_detect()
   } else {
     front_motor_encoder_count--;
   }
+  Serial.println(front_motor_encoder_count);
 }
 
 void left_motor_hallA_detect() 
@@ -251,6 +252,7 @@ void left_motor_hallA_detect()
   } else {
     left_motor_encoder_count--;
   }
+  Serial.println(left_motor_encoder_count);
 }
 
 void back_motor_hallA_detect() 
@@ -266,6 +268,7 @@ void back_motor_hallA_detect()
   } else {
     back_motor_encoder_count--;
   }
+  Serial.println(back_motor_encoder_count);
 }
 
 void right_motor_hallA_detect() 
@@ -281,6 +284,7 @@ void right_motor_hallA_detect()
   } else {
     right_motor_encoder_count--;
   }
+  Serial.println(right_motor_encoder_count);
 }
 
 void setup()
