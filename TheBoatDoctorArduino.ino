@@ -963,7 +963,9 @@ void publishUltrasonicRangeMsgs()
 void publishJointStates()
 {
   joint_states_msg.header.stamp = nh.now();
-  joint_state_positions = [turntable_theta, x_gantry_position, z_gantry_position];
+  joint_state_positions[0] = turntable_theta;
+  joint_state_positions[1] = x_gantry_position;
+  joint_state_positions[2] =  z_gantry_position;
   joint_states_msg.position = joint_state_positions;
   joint_states_pub.publish(&joint_states_msg);
 }
