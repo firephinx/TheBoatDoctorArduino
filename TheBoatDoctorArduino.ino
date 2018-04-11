@@ -60,8 +60,10 @@
 #include <tf/transform_broadcaster.h> // Transform Broadcaster for TF
 #include <std_msgs/Empty.h> // Empty msg for stopping everything
 #include <std_msgs/Bool.h> // Bool msg for Pump and LED switches
-#include <geometry_msgs/Pose2D.h> // Pose2D msg for moving the robot base and turntable
+#include <geometry_msgs/Pose2D.h> // Pose2D msg for moving the robot base
 #include <geometry_msgs/Twist.h> // Twist msg for cmd_vel
+#include <geometry_msgs/Point.h> // Point msg to command the turntable, X and Z Gantry
+#include <sensor_msgs/JointState.h> // JointState msg for publishing the robot's current joint values
 #include <sensor_msgs/Range.h> // Sensor_msgs Range message for Ultrasonic Sensors
 #include <sensor_msgs/Imu.h> // Sensor_msgs Imu message for IMU
 
@@ -82,8 +84,11 @@ tf::TransformBroadcaster broadcaster;
 
 sensor_msgs::Range front_ultrasonic_range_msg;
 sensor_msgs::Range right_ultrasonic_range_msg;
-ros::Publisher front_ultrasonic_range_pub( "/TheBoatDoctor/front/ultrasonic", &front_ultrasonic_range_msg);
-ros::Publisher right_ultrasonic_range_pub( "/TheBoatDoctor/right/ultrasonic", &right_ultrasonic_range_msg);
+ros::Publisher front_ultrasonic_range_pub("/TheBoatDoctor/front/ultrasonic", &front_ultrasonic_range_msg);
+ros::Publisher right_ultrasonic_range_pub("/TheBoatDoctor/right/ultrasonic", &right_ultrasonic_range_msg);
+
+sensor:msgs::JointState joint_states_msg;
+ros::Publisher joint_states_pub("/TheBoatDoctor/joint_states", &joint_states_msg);
 
 sensor_msgs::Imu imu_msg;
 ros::Publisher imu_pub( "/TheBoatDoctor/imu", &imu_msg);
@@ -101,19 +106,27 @@ const int gear_ratio = 131;
 const float motor_rpm = 80.0;
 const float distance_between_wheels = 0.33; // Guessing that there is around 0.33m (13") between each pair of wheels
 const float distance_traveled_per_wheel_revolution = wheel_diameter * PI; // m
-const float max_motor_speed = distance_traveled_per_wheel_revolution * motor_rpm / 60.0; // m/s
+const float max_base_speed = distance_traveled_per_wheel_revolution * motor_rpm / 60.0; // m/s
 const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor encoder, but only using an interrupt for channel A
 
 // Stepper Motor Globals
 float turntable_theta = 0.0;
 int turntable_step_count = 0;
 const int turntable_steps_per_revolution = 6400;
+const int min_turntable_steps = -turntable_steps_per_revolution / 4; 
+const int max_turntable_steps = turntable_steps_per_revolution / 4; 
 float x_gantry_position;
 int x_gantry_step_count;
 const int x_gantry_steps_per_revolution = 1600;
+const float x_gantry_distance_per_revolution = 0.005; // 5 mm pitch
+const float x_gantry_length = 0.25; // 300 mm length, but safety of 250mm
+const int max_x_gantry_steps = (x_gantry_length / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
 float z_gantry_position;
 int z_gantry_step_count;
 const int z_gantry_steps_per_revolution = 1600;
+const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch GUESS
+const float z_gantry_length = 0.4; // 450mm or ~18" length but safety of 400mm
+const int max_z_gantry_steps = (z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 
 // IMU Globals
 // Earth's magnetic field varies by location. Add or subtract 
@@ -196,31 +209,91 @@ void homeCallback(const std_msgs::Empty& stop_msg){
   homeTurntable();
 }
 
-void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
-{
-
-}
-
-void pose2DCallback(const geometry_msgs::Pose2D& pose_2d_msg)
+void cmdPosCallback(const geometry_msgs::Pose2D& pose_2d_msg)
 {
   float current_x = front_ultrasonic_range_distance;
   float current_y = right_ultrasonic_range_distance;
-  float current_theta = turntable_theta;
 
   float desired_x = pose_2d_msg.x;
   float desired_y = pose_2d_msg.y;
   float desired_theta = pose_2d_msg.theta;
 
   moveBase(desired_x - current_x, desired_y - current_y);
-  moveTurntable(desired_theta - current_theta);
+}
+
+void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
+{
+  float desired_x_vel = twist_msg.linear.x;
+  float desired_y_vel = twist_msg.linear.y;
+
+  if(desired_x_vel > 0)
+  {
+    // Backward
+    int x_speed = max((desired_x_vel / max_base_speed), 1.0) * 255;
+    digitalWrite(LeftMotorIn1, HIGH);
+    digitalWrite(LeftMotorIn2, LOW);  
+    digitalWrite(RightMotorIn1, LOW);
+    digitalWrite(RightMotorIn2, HIGH); 
+    analogWrite(LeftMotorEnable, x_speed);
+    analogWrite(RightMotorEnable, x_speed);
+  }
+  else
+  {
+    // Forward
+    int x_speed = max((-desired_x_vel / max_base_speed), 1.0) * 255;
+    digitalWrite(LeftMotorIn1, LOW);
+    digitalWrite(LeftMotorIn2, HIGH);  
+    digitalWrite(RightMotorIn1, HIGH);
+    digitalWrite(RightMotorIn2, LOW);
+    analogWrite(LeftMotorEnable, x_speed);
+    analogWrite(RightMotorEnable, x_speed);
+  }
+
+  if(desired_y_vel > 0)
+  {
+    // Left
+    int y_speed = max((desired_y_vel / max_base_speed), 1.0) * 255;
+    digitalWrite(FrontMotorIn1, HIGH);
+    digitalWrite(FrontMotorIn2, LOW);  
+    digitalWrite(BackMotorIn1, LOW);
+    digitalWrite(BackMotorIn2, HIGH);
+    analogWrite(FrontMotorEnable, y_speed);
+    analogWrite(BackMotorEnable, y_speed);
+  }
+  else
+  {
+    // Right
+    int y_speed = max((-desired_y_vel / max_base_speed), 1.0) * 255;
+    digitalWrite(FrontMotorIn1, LOW);
+    digitalWrite(FrontMotorIn2, HIGH);  
+    digitalWrite(BackMotorIn1, HIGH);
+    digitalWrite(BackMotorIn2, LOW);
+    analogWrite(FrontMotorEnable, y_speed);
+    analogWrite(BackMotorEnable, y_speed);
+  }
+}
+
+void cmdJointPosCallback(const geometry_msgs::Point& cmd_joint_pos_msg)
+{
+  float current_x_gantry_position = x_gantry_position;
+  float current_z_gantry_position = z_gantry_position;
+  float current_turntable_theta = turntable_theta;
+
+  float desired_x_gantry_position = cmd_joint_pos_msg.x;
+  float desired_z_gantry_position = cmd_joint_pos_msg.z;
+  float desired_turntable_theta = cmd_joint_pos_msg.y;
+
+  moveGantry(desired_x_gantry_position - current_x_gantry_position, desired_z_gantry_position - current_z_gantry_position);
+  turnTurntable(desired_turntable_theta - current_turntable_theta);
 }
 
 ros::Subscriber<std_msgs::Bool> led_switch_sub("/TheBoatDoctor/LED_Switch", &ledSwitchCallback );
 ros::Subscriber<std_msgs::Bool> pump_switch_sub("/TheBoatDoctor/Pump_Switch", &pumpSwitchCallback );
 ros::Subscriber<std_msgs::Empty> stop_sub("/TheBoatDoctor/Stop", &stopCallback );
 ros::Subscriber<std_msgs::Empty> home_sub("/TheBoatDoctor/Home", &homeCallback );
+ros::Subscriber<geometry_msgs::Pose2D> cmd_pos_sub("/TheBoatDoctor/cmd_pos", cmdPosCallback);
 ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("/TheBoatDoctor/cmd_vel", cmdVelCallback);
-ros::Subscriber<geometry_msgs::Pose2D> pose_2d_sub("/TheBoatDoctor/Pose2D", pose2DCallback);
+ros::Subscriber<geometry_msgs::Point> cmd_joint_pos_sub("/TheBoatDoctor/cmd_joint_pos", cmdJointPosCallback);
 
 // Interrupt Service Routines for Motor Encoders
 void front_motor_hallA_detect() 
@@ -379,11 +452,16 @@ void setup()
   nh.advertise(front_ultrasonic_range_pub);
   nh.advertise(right_ultrasonic_range_pub);
   nh.advertise(imu_pub);
+  nh.advertise(joint_states_pub);
 
   // Subscribe to topics
   nh.subscribe(led_switch_sub);
   nh.subscribe(pump_switch_sub);
   nh.subscribe(stop_sub);
+  nh.subscribe(home_sub);
+  nh.subscribe(cmd_pos_sub);
+  nh.subscribe(cmd_vel_sub);
+  nh.subscribe(cmd_joint_pos_sub);
 
   // Ultrasonic Sensor Setup Code
   front_ultrasonic_range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
@@ -415,6 +493,9 @@ void setup()
   imu_msg.linear_acceleration_covariance[0] = 0.777;
   imu_msg.linear_acceleration_covariance[4] = 0.777;
   imu_msg.linear_acceleration_covariance[8] = 0.777;
+
+  // Joint States Setup Code
+  joint_states_msg.name = ['turntable', 'X_motion', 'Z_motion']
 
   zeroXGantry();
   zeroZGantry();
@@ -580,40 +661,9 @@ void moveBase(float x_dist, float y_dist)
   int target_back_motor_encoder_count = back_motor_encoder_count + num_y_encoder_counts;
   int target_right_motor_encoder_count = right_motor_encoder_count + num_x_encoder_counts;
 
-  if(num_x_encoder_counts < 0)
+  if (num_x_encoder_counts > 0)
   {
-    // Going Forwards
-    digitalWrite(LeftMotorIn1, LOW);
-    digitalWrite(LeftMotorIn2, HIGH);  
-    digitalWrite(RightMotorIn1, HIGH);
-    digitalWrite(RightMotorIn2, LOW); 
-
-    int motor_speed = 0;
-    while(left_motor_encoder_count < target_left_motor_encoder_count && 
-          right_motor_encoder_count > target_right_motor_encoder_count &&
-          motor_speed < 128)
-    {
-      analogWrite(LeftMotorEnable, motor_speed);
-      analogWrite(RightMotorEnable, motor_speed);
-      motor_speed++;
-      delay(20);
-    }
-    while(left_motor_encoder_count < target_left_motor_encoder_count && 
-          right_motor_encoder_count > target_right_motor_encoder_count)
-    {
-      delay(20);
-    }
-    while(motor_speed > 0)
-    {
-      analogWrite(LeftMotorEnable, motor_speed);
-      analogWrite(RightMotorEnable, motor_speed);
-      motor_speed--;
-      delay(20);
-    }
-  }
-  else
-  {
-    // Going Backwards
+    // Going Backward
     digitalWrite(LeftMotorIn1, HIGH);
     digitalWrite(LeftMotorIn2, LOW);  
     digitalWrite(RightMotorIn1, LOW);
@@ -622,7 +672,7 @@ void moveBase(float x_dist, float y_dist)
     int motor_speed = 0;
     while(left_motor_encoder_count > target_left_motor_encoder_count && 
           right_motor_encoder_count < target_right_motor_encoder_count &&
-          motor_speed < 128)
+          motor_speed < 255)
     {
       analogWrite(LeftMotorEnable, motor_speed);
       analogWrite(RightMotorEnable, motor_speed);
@@ -642,6 +692,38 @@ void moveBase(float x_dist, float y_dist)
       delay(20);
     } 
   }
+  else
+  {
+    // Going Forward
+    digitalWrite(LeftMotorIn1, LOW);
+    digitalWrite(LeftMotorIn2, HIGH);  
+    digitalWrite(RightMotorIn1, HIGH);
+    digitalWrite(RightMotorIn2, LOW); 
+
+    int motor_speed = 0;
+    while(left_motor_encoder_count < target_left_motor_encoder_count && 
+          right_motor_encoder_count > target_right_motor_encoder_count &&
+          motor_speed < 255)
+    {
+      analogWrite(LeftMotorEnable, motor_speed);
+      analogWrite(RightMotorEnable, motor_speed);
+      motor_speed++;
+      delay(20);
+    }
+    while(left_motor_encoder_count < target_left_motor_encoder_count && 
+          right_motor_encoder_count > target_right_motor_encoder_count)
+    {
+      delay(20);
+    }
+    while(motor_speed > 0)
+    {
+      analogWrite(LeftMotorEnable, motor_speed);
+      analogWrite(RightMotorEnable, motor_speed);
+      motor_speed--;
+      delay(20);
+    }
+  }
+  
   if(num_y_encoder_counts > 0)
   {
     // Going Left
@@ -653,7 +735,7 @@ void moveBase(float x_dist, float y_dist)
     int motor_speed = 0;
     while(front_motor_encoder_count > target_front_motor_encoder_count && 
           back_motor_encoder_count < target_back_motor_encoder_count &&
-          motor_speed < 128)
+          motor_speed < 255)
     {
       analogWrite(FrontMotorEnable, motor_speed);
       analogWrite(BackMotorEnable, motor_speed);
@@ -684,7 +766,7 @@ void moveBase(float x_dist, float y_dist)
     int motor_speed = 0;
     while(front_motor_encoder_count < target_front_motor_encoder_count && 
           back_motor_encoder_count > target_back_motor_encoder_count &&
-          motor_speed < 128)
+          motor_speed < 255)
     {
       analogWrite(FrontMotorEnable, motor_speed);
       analogWrite(BackMotorEnable, motor_speed);
@@ -706,7 +788,85 @@ void moveBase(float x_dist, float y_dist)
   }
 }
 
-void moveTurntable(float theta)
+void moveGantry(float x_gantry_dist, float z_gantry_dist)
+{
+  int num_x_gantry_steps = (x_gantry_dist / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
+  int num_z_gantry_steps = (z_gantry_dist / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
+
+  if(num_x_gantry_steps > 0)
+  {
+    digitalWrite(XGantryStepperDirection, HIGH);
+    for (int i = 0; i < num_x_gantry_steps; i++)
+    {         
+      if(x_gantry_step_count >= max_x_gantry_steps)
+      {
+        x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+        return;
+      }
+      digitalWrite(XGantryStepperPulse, HIGH);
+      digitalWrite(XGantryStepperPulse, LOW);
+      x_gantry_step_count++;
+
+      delayMicroseconds(300);
+    }
+  }
+  else
+  {
+    digitalWrite(XGantryStepperDirection, LOW);
+    for (int i = 0; i < -num_x_gantry_steps; i++)
+    {         
+      if(x_gantry_step_count == 0)
+      {
+        x_gantry_position = 0.0;
+        return;
+      }
+      digitalWrite(XGantryStepperPulse, HIGH);
+      digitalWrite(XGantryStepperPulse, LOW);
+      x_gantry_step_count--;
+
+      delayMicroseconds(300);
+    }
+  }
+  x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+
+  if(num_z_gantry_steps > 0)
+  {
+    digitalWrite(ZGantryStepperDirection, HIGH);
+    for (int i = 0; i < num_z_gantry_steps; i++)
+    {         
+      if(z_gantry_step_count >= max_z_gantry_steps)
+      {
+        z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+        return;
+      }
+      digitalWrite(ZGantryStepperPulse, HIGH);
+      digitalWrite(ZGantryStepperPulse, LOW);
+      z_gantry_step_count++;
+
+      delayMicroseconds(300);
+    }
+  }
+  else
+  {
+    digitalWrite(ZGantryStepperDirection, LOW);
+    for (int i = 0; i < -num_z_gantry_steps; i++)
+    {         
+      if(z_gantry_step_count == 0)
+      {
+        z_gantry_position = 0.0;
+        return;
+      }
+      digitalWrite(ZGantryStepperPulse, HIGH);
+      digitalWrite(ZGantryStepperPulse, LOW);
+      z_gantry_step_count--;
+
+      delayMicroseconds(300);
+    }
+  }
+  z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+}
+
+void turnTurntable(float theta)
 {
   if(theta > 0)
   {
@@ -714,11 +874,17 @@ void moveTurntable(float theta)
     digitalWrite(TurntableStepperDirection, HIGH);
     for (int i = 1; i < num_turntable_steps; i++)
     {
-     digitalWrite(TurntableStepperPulse, HIGH);
-     digitalWrite(TurntableStepperPulse, LOW);
-     turntable_step_count++;
+      if(turntable_step_count >= max_turntable_steps)
+      {
+        turntable_theta = (turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        return;
+      }
 
-     delayMicroseconds(10000);
+      digitalWrite(TurntableStepperPulse, HIGH);
+      digitalWrite(TurntableStepperPulse, LOW);
+      turntable_step_count++;
+
+      delayMicroseconds(10000);
     }
   }
   else
@@ -727,275 +893,21 @@ void moveTurntable(float theta)
     digitalWrite(TurntableStepperDirection, LOW);
     for (int i = 1; i < num_turntable_steps; i++)
     {
-     digitalWrite(TurntableStepperPulse, HIGH);
-     digitalWrite(TurntableStepperPulse, LOW);
-     turntable_step_count--;
+      if(turntable_step_count <= min_turntable_steps)
+      {
+        turntable_theta = (turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        return;
+      }
 
-     delayMicroseconds(10000);
+      digitalWrite(TurntableStepperPulse, HIGH);
+      digitalWrite(TurntableStepperPulse, LOW);
+      turntable_step_count--;
+
+      delayMicroseconds(10000);
     }
   }
   turntable_theta = (turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
 }
-
-//void serialCommand()
-//{
-//  if(Serial.available() > 0) {
-//    int command = Serial.read();
-//
-//    switch (command) {
-//      case 'f':
-//        if(prevCommand != command)
-//        {
-//          stopPrevCommand();
-//          digitalWrite(FrontMotorIn1, LOW);
-//          digitalWrite(LeftMotorIn2, HIGH);  
-//          digitalWrite(RightMotorIn1, HIGH);
-//          digitalWrite(RightMotorIn2, LOW); 
-//          // accelerate from zero to maximum speed
-//          for (int i = 0; i < 128; i++)
-//          {
-//            analogWrite(LeftMotorEnable, i);
-//            analogWrite(RightMotorEnable, i);
-//            delay(20);
-//          } 
-//        }
-//        break;
-//      case 'b':
-//        if(prevCommand != command)
-//        {
-//          stopPrevCommand();
-//          digitalWrite(LeftMotorIn1, HIGH);
-//          digitalWrite(LeftMotorIn2, LOW);  
-//          digitalWrite(RightMotorIn1, LOW);
-//          digitalWrite(RightMotorIn2, HIGH); 
-//          // accelerate from zero to maximum speed
-//          for (int i = 0; i < 128; i++)
-//          {
-//            analogWrite(LeftMotorEnable, i);
-//            analogWrite(RightMotorEnable, i);
-//            delay(20);
-//          } 
-//        }
-//        break;
-//      case 'l':
-//        if(prevCommand != command)
-//        {
-//          stopPrevCommand();
-//          digitalWrite(FrontMotorIn1, HIGH);
-//          digitalWrite(FrontMotorIn2, LOW);  
-//          digitalWrite(BackMotorIn1, LOW);
-//          digitalWrite(BackMotorIn2, HIGH); 
-//          // accelerate from zero to maximum speed
-//          for (int i = 0; i < 128; i++)
-//          {
-//            analogWrite(FrontMotorEnable, i);
-//            analogWrite(BackMotorEnable, i);
-//            delay(20);
-//          } 
-//        }
-//        break;
-//      case 'r':
-//        if(prevCommand != command)
-//        {
-//          stopPrevCommand();
-//          digitalWrite(FrontMotorIn1, LOW);
-//          digitalWrite(FrontMotorIn2, HIGH);  
-//          digitalWrite(BackMotorIn1, HIGH);
-//          digitalWrite(BackMotorIn2, LOW); 
-//          // accelerate from zero to maximum speed
-//          for (int i = 0; i < 128; i++)
-//          {
-//            analogWrite(FrontMotorEnable, i);
-//            analogWrite(BackMotorEnable, i);
-//            delay(20);
-//          } 
-//        break;
-//        }
-//      case 'p':
-//        digitalWrite(PumpSwitch, HIGH);
-//        break;
-//      case 'o':
-//        digitalWrite(PumpSwitch, LOW);
-//        break;
-//      case 'k':
-//        digitalWrite(LEDSwitch, HIGH);
-//        break;
-//      case 'j':
-//        digitalWrite(LEDSwitch, LOW);
-//        break;
-//      case 'w':
-//        digitalWrite(ZGantryStepperDirection, LOW);
-//        for (int i = 0; i < 3200; i++)
-//        { 
-//          digitalWrite(ZGantryStepperPulse, HIGH);
-//          digitalWrite(ZGantryStepperPulse, LOW);
-//          
-//          delayMicroseconds(300);
-//        }
-//        break;
-//      case 's':
-//        digitalWrite(ZGantryStepperDirection, HIGH);
-//        for (int i = 0; i < 3200; i++)
-//        {         
-//          digitalWrite(ZGantryStepperPulse, HIGH);
-//          digitalWrite(ZGantryStepperPulse, LOW);
-//          
-//          delayMicroseconds(300);
-//        }
-//        break;
-//      case 'a':
-//        digitalWrite(XGantryStepperDirection, LOW);
-//        for (int i = 0; i < 3200; i++)
-//        {         
-//          if(digitalRead(XAxisLimitSwitch) == 0)
-//          {
-//            digitalWrite(XGantryStepperDirection, HIGH);
-//            while (digitalRead(XAxisLimitSwitch) != 1)
-//            {
-//              digitalWrite(XGantryStepperPulse, HIGH);
-//              digitalWrite(XGantryStepperPulse, LOW);
-//              
-//              delayMicroseconds(300);
-//            }
-//            for (int i = 1; i < 300; i++)
-//            {
-//              digitalWrite(XGantryStepperPulse, HIGH);
-//              digitalWrite(XGantryStepperPulse, LOW);
-//    
-//              delayMicroseconds(300);
-//            }
-//            break;
-//          }
-//          digitalWrite(XGantryStepperPulse, HIGH);
-//          digitalWrite(XGantryStepperPulse, LOW);
-//          
-//          delayMicroseconds(300);
-//        }
-//        break;
-//      case 'd':
-//        digitalWrite(XGantryStepperDirection, HIGH);
-//        for (int i = 0; i < 3200; i++)
-//        {         
-//          digitalWrite(XGantryStepperPulse, HIGH);
-//          digitalWrite(XGantryStepperPulse, LOW);
-//          
-//          delayMicroseconds(300);
-//        }
-//        break;
-//      case 'z':
-//        digitalWrite(ZGantryStepperDirection, HIGH);
-//        while (digitalRead(ZAxisLimitSwitch) != 0)
-//        {         
-//          digitalWrite(ZGantryStepperPulse, HIGH);
-//          digitalWrite(ZGantryStepperPulse, LOW);
-//          
-//          delayMicroseconds(1000);
-//        }
-//        break;
-//      case 'x':
-//        digitalWrite(XGantryStepperDirection, LOW);
-//        while (digitalRead(XAxisLimitSwitch) != 0)
-//        {         
-//          digitalWrite(XGantryStepperPulse, HIGH);
-//          digitalWrite(XGantryStepperPulse, LOW);
-//          
-//          delayMicroseconds(1000);
-//        }
-//        digitalWrite(XGantryStepperDirection, HIGH);
-//        while (digitalRead(XAxisLimitSwitch) != 1)
-//        {
-//          digitalWrite(XGantryStepperPulse, HIGH);
-//          digitalWrite(XGantryStepperPulse, LOW);
-//          
-//          delayMicroseconds(1000);
-//        }
-//        for (int i = 1; i < 300; i++)
-//        {
-//          digitalWrite(XGantryStepperPulse, HIGH);
-//          digitalWrite(XGantryStepperPulse, LOW);
-//
-//          delayMicroseconds(1000);
-//        }
-//        break;
-//      case 'v':
-//        digitalWrite(TurntableStepperDirection, LOW);
-//        for (int i = 0; i < 12800; i++)
-//        {         
-//          digitalWrite(TurntableStepperPulse, HIGH);
-//          digitalWrite(TurntableStepperPulse, LOW);
-//          
-//          delayMicroseconds(300);
-//        }
-//        break;
-//      case 'c':
-//        digitalWrite(TurntableStepperDirection, HIGH);
-//        for (int i = 0; i < 12800; i++)
-//        {         
-//          digitalWrite(TurntableStepperPulse, HIGH);
-//          digitalWrite(TurntableStepperPulse, LOW);
-//          
-//          delayMicroseconds(300);
-//        }
-//        break;
-//
-//      default:
-//        stopPrevCommand();
-//        digitalWrite(FrontMotorIn1, LOW);
-//        digitalWrite(FrontMotorIn2, LOW);
-//        digitalWrite(LeftMotorIn1, LOW);
-//        digitalWrite(LeftMotorIn2, LOW); 
-//        digitalWrite(RightMotorIn1, LOW);
-//        digitalWrite(RightMotorIn2, LOW);
-//        digitalWrite(BackMotorIn1, LOW);
-//        digitalWrite(BackMotorIn2, LOW);
-//        digitalWrite(PumpSwitch, LOW);
-//        digitalWrite(LEDSwitch, LOW);
-//    }
-//    prevCommand = command;
-//  }
-//  readUltrasonicSensors();
-//}
-//
-//void stopPrevCommand()
-//{
-//  switch (prevCommand) {
-//    case 'f':
-//    case 'b':
-//      for (int i = 127; i >= 0; --i)
-//      {
-//        analogWrite(LeftMotorEnable, i);
-//        analogWrite(RightMotorEnable, i);
-//        delay(20);
-//      } 
-//      digitalWrite(LeftMotorIn1, LOW);
-//      digitalWrite(LeftMotorIn2, LOW);  
-//      digitalWrite(RightMotorIn1, LOW);
-//      digitalWrite(RightMotorIn2, LOW);  
-//      break;
-//    case 'l':
-//    case 'r':
-//      for (int i = 127; i >= 0; --i)
-//      {
-//        analogWrite(FrontMotorEnable, i);
-//        analogWrite(BackMotorEnable, i);
-//        delay(20);
-//      } 
-//      digitalWrite(FrontMotorIn1, LOW);
-//      digitalWrite(FrontMotorIn2, LOW);  
-//      digitalWrite(BackMotorIn1, LOW);
-//      digitalWrite(BackMotorIn2, LOW);  
-//      break;
-//    default:
-//      digitalWrite(FrontMotorIn1, LOW);
-//      digitalWrite(FrontMotorIn2, LOW);
-//      digitalWrite(LeftMotorIn1, LOW);
-//      digitalWrite(LeftMotorIn2, LOW); 
-//      digitalWrite(RightMotorIn1, LOW);
-//      digitalWrite(RightMotorIn2, LOW);
-//      digitalWrite(BackMotorIn1, LOW);
-//      digitalWrite(BackMotorIn2, LOW);
-//    }
-//}
 
 void readUltrasonicSensors(){
   // Set the trigger to Low for a little while initially
@@ -1041,6 +953,13 @@ void publishUltrasonicRangeMsgs()
   right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
 }
 
+void publishJointStates()
+{
+  joint_states_msg.header.stamp = nh.now();
+  joint_states_msg.position = [turntable_theta, x_gantry_position, z_gantry_position];
+  joint_states_pub.publish(&joint_states_msg);
+}
+
 void loop()
 {
   updateTransform();
@@ -1051,6 +970,8 @@ void loop()
 
   readUltrasonicSensors();
   publishUltrasonicRangeMsgs();
+
+  publishJointStates();
 
   nh.spinOnce();
   delay(10);
