@@ -503,9 +503,6 @@ void setup()
   joint_states_msg.position_length = 3;
   joint_states_msg.effort_length = 3;
   joint_states_msg.name = joint_names;
-
-  zeroXGantry();
-  zeroZGantry();
 }
 
 void homeTurntable()
