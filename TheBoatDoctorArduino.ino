@@ -87,7 +87,7 @@ sensor_msgs::Range right_ultrasonic_range_msg;
 ros::Publisher front_ultrasonic_range_pub("/TheBoatDoctor/front/ultrasonic", &front_ultrasonic_range_msg);
 ros::Publisher right_ultrasonic_range_pub("/TheBoatDoctor/right/ultrasonic", &right_ultrasonic_range_msg);
 
-sensor:msgs::JointState joint_states_msg;
+sensor_msgs::JointState joint_states_msg;
 ros::Publisher joint_states_pub("/TheBoatDoctor/joint_states", &joint_states_msg);
 
 sensor_msgs::Imu imu_msg;
@@ -95,6 +95,8 @@ ros::Publisher imu_pub( "/TheBoatDoctor/imu", &imu_msg);
 
 char base_link[] = "/base_link";
 char odom[] = "/odom";
+
+char *joint_names[] = {"turntable", "X_motion", "Z_motion"};
 
 // Motor Encoder Globals
 long front_motor_encoder_count = 0;
@@ -495,7 +497,11 @@ void setup()
   imu_msg.linear_acceleration_covariance[8] = 0.777;
 
   // Joint States Setup Code
-  joint_states_msg.name = ['turntable', 'X_motion', 'Z_motion']
+  joint_states_msg.name_length = 3;
+  joint_states_msg.velocity_length = 3;
+  joint_states_msg.position_length = 3;
+  joint_states_msg.effort_length = 3;
+  joint_states_msg.name = joint_names;
 
   zeroXGantry();
   zeroZGantry();
