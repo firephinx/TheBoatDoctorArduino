@@ -101,19 +101,19 @@ const int gear_ratio = 131;
 const float motor_rpm = 80.0;
 const float distance_between_wheels = 0.33; // Guessing that there is around 0.33m (13") between each pair of wheels
 const float distance_traveled_per_wheel_revolution = wheel_diameter * PI; // m
-const float max_motor_speed = distance_per_wheel * motor_rpm / 60.0; // m/s
+const float max_motor_speed = distance_traveled_per_wheel_revolution * motor_rpm / 60.0; // m/s
 const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor encoder, but only using an interrupt for channel A
 
 // Stepper Motor Globals
-float turntable_theta; = 0.0;
+float turntable_theta = 0.0;
 int turntable_step_count = 0;
 const int turntable_steps_per_revolution = 6400;
 float x_gantry_position;
 int x_gantry_step_count;
-const int x_gantry_steps_per_revolution = ;
+const int x_gantry_steps_per_revolution = 1600;
 float z_gantry_position;
 int z_gantry_step_count;
-const int z_gantry_steps_per_revolution = ;
+const int z_gantry_steps_per_revolution = 1600;
 
 // IMU Globals
 // Earth's magnetic field varies by location. Add or subtract 
@@ -203,13 +203,13 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
 
 void pose2DCallback(const geometry_msgs::Pose2D& pose_2d_msg)
 {
-  current_x = front_ultrasonic_range_distance;
-  current_y = right_ultrasonic_range_distance;
-  current_theta = turntable_theta;
+  float current_x = front_ultrasonic_range_distance;
+  float current_y = right_ultrasonic_range_distance;
+  float current_theta = turntable_theta;
 
-  desired_x = pose_2d_msg.x;
-  desired_y = pose_2d_msg.y;
-  desired_theta = pose_2d_msg.theta;
+  float desired_x = pose_2d_msg.x;
+  float desired_y = pose_2d_msg.y;
+  float desired_theta = pose_2d_msg.theta;
 
   moveBase(desired_x - current_x, desired_y - current_y);
   moveTurntable(desired_theta - current_theta);
