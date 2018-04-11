@@ -236,7 +236,6 @@ void front_motor_hallA_detect()
   } else {
     front_motor_encoder_count--;
   }
-  Serial.println(front_motor_encoder_count);
 }
 
 void left_motor_hallA_detect() 
@@ -252,7 +251,6 @@ void left_motor_hallA_detect()
   } else {
     left_motor_encoder_count--;
   }
-  Serial.println(left_motor_encoder_count);
 }
 
 void back_motor_hallA_detect() 
@@ -268,7 +266,6 @@ void back_motor_hallA_detect()
   } else {
     back_motor_encoder_count--;
   }
-  Serial.println(back_motor_encoder_count);
 }
 
 void right_motor_hallA_detect() 
@@ -284,7 +281,6 @@ void right_motor_hallA_detect()
   } else {
     right_motor_encoder_count--;
   }
-  Serial.println(right_motor_encoder_count);
 }
 
 void setup()
@@ -579,8 +575,8 @@ void moveBase(float x_dist, float y_dist)
   int num_x_encoder_counts = (x_dist / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution;
   int num_y_encoder_counts = (y_dist / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution;
 
-  int target_front_motor_encoder_count = front_motor_encoder_count + num_y_encoder_counts;
-  int target_left_motor_encoder_count = left_motor_encoder_count + num_x_encoder_counts;
+  int target_front_motor_encoder_count = front_motor_encoder_count - num_y_encoder_counts;
+  int target_left_motor_encoder_count = left_motor_encoder_count - num_x_encoder_counts;
   int target_back_motor_encoder_count = back_motor_encoder_count + num_y_encoder_counts;
   int target_right_motor_encoder_count = right_motor_encoder_count + num_x_encoder_counts;
 
@@ -593,7 +589,7 @@ void moveBase(float x_dist, float y_dist)
     digitalWrite(RightMotorIn2, LOW); 
 
     int motor_speed = 0;
-    while(left_motor_encoder_count > target_left_motor_encoder_count && 
+    while(left_motor_encoder_count < target_left_motor_encoder_count && 
           right_motor_encoder_count > target_right_motor_encoder_count &&
           motor_speed < 128)
     {
@@ -602,7 +598,7 @@ void moveBase(float x_dist, float y_dist)
       motor_speed++;
       delay(20);
     }
-    while(left_motor_encoder_count > target_left_motor_encoder_count && 
+    while(left_motor_encoder_count < target_left_motor_encoder_count && 
           right_motor_encoder_count > target_right_motor_encoder_count)
     {
       delay(20);
@@ -624,7 +620,7 @@ void moveBase(float x_dist, float y_dist)
     digitalWrite(RightMotorIn2, HIGH); 
 
     int motor_speed = 0;
-    while(left_motor_encoder_count < target_left_motor_encoder_count && 
+    while(left_motor_encoder_count > target_left_motor_encoder_count && 
           right_motor_encoder_count < target_right_motor_encoder_count &&
           motor_speed < 128)
     {
@@ -633,7 +629,7 @@ void moveBase(float x_dist, float y_dist)
       motor_speed++;
       delay(20);
     }
-    while(left_motor_encoder_count < target_left_motor_encoder_count && 
+    while(left_motor_encoder_count > target_left_motor_encoder_count && 
           right_motor_encoder_count < target_right_motor_encoder_count)
     {
       delay(20);
@@ -656,7 +652,7 @@ void moveBase(float x_dist, float y_dist)
 
     int motor_speed = 0;
     while(front_motor_encoder_count > target_front_motor_encoder_count && 
-          back_motor_encoder_count > target_back_motor_encoder_count &&
+          back_motor_encoder_count < target_back_motor_encoder_count &&
           motor_speed < 128)
     {
       analogWrite(FrontMotorEnable, motor_speed);
@@ -665,7 +661,7 @@ void moveBase(float x_dist, float y_dist)
       delay(20);
     }
     while(front_motor_encoder_count > target_front_motor_encoder_count && 
-          back_motor_encoder_count > target_back_motor_encoder_count)
+          back_motor_encoder_count < target_back_motor_encoder_count)
     {
       delay(20);
     }
@@ -687,7 +683,7 @@ void moveBase(float x_dist, float y_dist)
 
     int motor_speed = 0;
     while(front_motor_encoder_count < target_front_motor_encoder_count && 
-          back_motor_encoder_count < target_back_motor_encoder_count &&
+          back_motor_encoder_count > target_back_motor_encoder_count &&
           motor_speed < 128)
     {
       analogWrite(FrontMotorEnable, motor_speed);
@@ -696,7 +692,7 @@ void moveBase(float x_dist, float y_dist)
       delay(20);
     }
     while(front_motor_encoder_count < target_front_motor_encoder_count && 
-          back_motor_encoder_count < target_back_motor_encoder_count)
+          back_motor_encoder_count > target_back_motor_encoder_count)
     {
       delay(20);
     }
