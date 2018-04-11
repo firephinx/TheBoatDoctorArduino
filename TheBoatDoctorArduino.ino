@@ -97,6 +97,7 @@ char base_link[] = "/base_link";
 char odom[] = "/odom";
 
 char *joint_names[] = {"turntable", "X_motion", "Z_motion"};
+float joint_state_positions[3];
 
 // Motor Encoder Globals
 long front_motor_encoder_count = 0;
@@ -962,7 +963,8 @@ void publishUltrasonicRangeMsgs()
 void publishJointStates()
 {
   joint_states_msg.header.stamp = nh.now();
-  joint_states_msg.position = [turntable_theta, x_gantry_position, z_gantry_position];
+  joint_state_positions = [turntable_theta, x_gantry_position, z_gantry_position];
+  joint_states_msg.position = joint_state_positions;
   joint_states_pub.publish(&joint_states_msg);
 }
 
