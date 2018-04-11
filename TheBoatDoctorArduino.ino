@@ -92,10 +92,10 @@ char base_link[] = "/base_link";
 char odom[] = "/odom";
 
 // Motor Encoder Globals
-volatile unsigned int front_motor_encoder_count = 0;
-volatile unsigned int left_motor_encoder_count = 0;
-volatile unsigned int back_motor_encoder_count = 0;
-volatile unsigned int right_motor_encoder_count = 0;
+long front_motor_encoder_count = 0;
+long left_motor_encoder_count = 0;
+long back_motor_encoder_count = 0;
+long right_motor_encoder_count = 0;
 const float wheel_diameter = 4.0;
 const int gear_ratio = 131;
 const float motor_rpm = 80.0;
