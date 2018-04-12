@@ -318,9 +318,9 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
     digitalWrite(RightMotorIn1, LOW);
     digitalWrite(RightMotorIn2, LOW);
   }
-  else if  (desired_x_vel > 0.0)
+  else if  (desired_x_vel < 0.0)
   {
-    // Backward
+    // Forward
     int x_speed = max((desired_x_vel / max_base_speed), 1.0) * 255;
     digitalWrite(LeftMotorIn1, HIGH);
     digitalWrite(LeftMotorIn2, LOW);  
@@ -331,7 +331,7 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
   }
   else
   {
-    // Forward
+    // Backward
     int x_speed = max((-desired_x_vel / max_base_speed), 1.0) * 255;
     digitalWrite(LeftMotorIn1, LOW);
     digitalWrite(LeftMotorIn2, HIGH);  
@@ -350,9 +350,9 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
     digitalWrite(BackMotorIn1, LOW);
     digitalWrite(BackMotorIn2, LOW);
   }
-  else if(desired_y_vel > 0.0)
+  else if(desired_y_vel < 0.0)
   {
-    // Left
+    // Right
     int y_speed = max((desired_y_vel / max_base_speed), 1.0) * 255;
     digitalWrite(FrontMotorIn1, HIGH);
     digitalWrite(FrontMotorIn2, LOW);  
@@ -363,7 +363,7 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
   }
   else
   {
-    // Right
+    // Left
     int y_speed = max((-desired_y_vel / max_base_speed), 1.0) * 255;
     digitalWrite(FrontMotorIn1, LOW);
     digitalWrite(FrontMotorIn2, HIGH);  
