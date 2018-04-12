@@ -1,4 +1,4 @@
-// ARDUINO MEGA PIN DEFINITIONS
+// ARDUINO MEGA PIN LAYOUT DEFINES
 //#define 0
 //#define 1
 #define LeftMotorEncoderHallA 2 // Interrupt Pin
@@ -54,7 +54,10 @@
 //#define 52
 //#define 53
 
-// ROS SERIAL INCLUDES
+// DEBUGGING FLAGS
+// #define PrintMotorEncoderValues true
+
+// ROS INCLUDES
 #include <ros.h> // ROS Serial
 #include <ros/time.h> // ROS time for publishing messages
 #include <tf/transform_broadcaster.h> // Transform Broadcaster for TF
@@ -67,6 +70,42 @@
 #include <sensor_msgs/Range.h> // Sensor_msgs Range message for Ultrasonic Sensors
 #include <sensor_msgs/Imu.h> // Sensor_msgs Imu message for IMU
 
+// ROS Globals
+ros::NodeHandle nh;
+
+// TF Broadcaster Globals
+geometry_msgs::TransformStamped t;
+char base_link[] = "/base_link";
+char odom[] = "/odom";
+
+// TF Broadcaster
+tf::TransformBroadcaster broadcaster;
+
+// Ultrasonic Sensor Publisher Globals
+sensor_msgs::Range front_ultrasonic_range_msg;
+sensor_msgs::Range right_ultrasonic_range_msg;
+geometry_msgs::Pose2D ultrasonic_pose_msg;
+long front_ultrasonic_range_duration;
+long right_ultrasonic_range_duration;
+float front_ultrasonic_range_distance;
+float right_ultrasonic_range_distance;
+char front_ultrasonic_frameid[] = "/front_ultrasonic";
+char right_ultrasonic_frameid[] = "/right_ultrasonic";
+float ultrasonic_sensor_offset_from_center = 0.219; // Ultrasonic sensors are around 0.219m or ~8.62in. from the center of the robot
+
+// Ultrasonic Sensor Publishers
+ros::Publisher front_ultrasonic_range_pub("/TheBoatDoctor/front/ultrasonic", &front_ultrasonic_range_msg);
+ros::Publisher right_ultrasonic_range_pub("/TheBoatDoctor/right/ultrasonic", &right_ultrasonic_range_msg);
+ros::Publisher ultrasonic_pose_pub("/TheBoatDoctor/ultrasonic_pose", &ultrasonic_pose_msg);
+
+// Joint States Publisher Globals
+sensor_msgs::JointState joint_states_msg;
+char *joint_names[] = {"turntable", "X_motion", "Z_motion"};
+float joint_state_positions[3];
+
+// Joint States Publisher
+ros::Publisher joint_states_pub("/TheBoatDoctor/joint_states", &joint_states_msg);
+
 // IMU INCLUDES
 #include <SPI.h> // SPI library included for SparkFunLSM9DS1
 #include <Wire.h> // I2C library included for SparkFunLSM9DS1
@@ -76,28 +115,19 @@
 // SDO_XM and SDO_G are both pulled high, so our addresses are:
 #define LSM9DS1_M   0x1E // Would be 0x1C if SDO_M is LOW
 #define LSM9DS1_AG  0x6B // Would be 0x6A if SDO_AG is LOW
+// Earth's magnetic field varies by location. Add or subtract 
+// a declination to get a more accurate heading. Calculate 
+// your's here:
+// http://www.ngdc.noaa.gov/geomag-web/#declination
+#define DECLINATION 9.20 // Declination (degrees) in Pittsburgh, PA.
 
-// ROS Globals
-ros::NodeHandle nh;
-geometry_msgs::TransformStamped t;
-tf::TransformBroadcaster broadcaster;
-
-sensor_msgs::Range front_ultrasonic_range_msg;
-sensor_msgs::Range right_ultrasonic_range_msg;
-ros::Publisher front_ultrasonic_range_pub("/TheBoatDoctor/front/ultrasonic", &front_ultrasonic_range_msg);
-ros::Publisher right_ultrasonic_range_pub("/TheBoatDoctor/right/ultrasonic", &right_ultrasonic_range_msg);
-
-sensor_msgs::JointState joint_states_msg;
-ros::Publisher joint_states_pub("/TheBoatDoctor/joint_states", &joint_states_msg);
-
+// IMU Publisher Globals
 sensor_msgs::Imu imu_msg;
-ros::Publisher imu_pub( "/TheBoatDoctor/imu", &imu_msg);
+LSM9DS1 imu;
+float heading;
 
-char base_link[] = "/base_link";
-char odom[] = "/odom";
-
-char *joint_names[] = {"turntable", "X_motion", "Z_motion"};
-float joint_state_positions[3];
+// IMU Publisher
+ros::Publisher imu_pub("/TheBoatDoctor/imu", &imu_msg);
 
 // Motor Encoder Globals
 long front_motor_encoder_count = 0;
@@ -107,48 +137,37 @@ long right_motor_encoder_count = 0;
 const float wheel_diameter = 0.1016; // 4in wheels = 0.1016m
 const int gear_ratio = 131;
 const float motor_rpm = 80.0;
-const float distance_between_wheels = 0.33; // Guessing that there is around 0.33m (13") between each pair of wheels
+const float distance_between_wheels = 0.33333; // There is around 0.333m (13.1") between each pair of wheels
 const float distance_traveled_per_wheel_revolution = wheel_diameter * PI; // m
 const float max_base_speed = distance_traveled_per_wheel_revolution * motor_rpm / 60.0; // m/s
 const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor encoder, but only using an interrupt for channel A
 
-// Stepper Motor Globals
-float turntable_theta = 0.0;
-int turntable_step_count = 0;
+// Turntable Globals
+float current_turntable_theta = 0.0;
+int current_turntable_step_count = 0;
 const int turntable_steps_per_revolution = 6400;
 const int min_turntable_steps = -turntable_steps_per_revolution / 4; 
 const int max_turntable_steps = turntable_steps_per_revolution / 4; 
-float x_gantry_position;
+
+// X Gantry Globals
+float current_x_gantry_position;
 int x_gantry_step_count;
 const int x_gantry_steps_per_revolution = 1600;
 const float x_gantry_distance_per_revolution = 0.005; // 5 mm pitch
 const float x_gantry_length = 0.25; // 300 mm length, but safety of 250mm
 const int max_x_gantry_steps = (x_gantry_length / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
-float z_gantry_position;
+
+// Z Gantry Globals
+float current_z_gantry_position;
 int z_gantry_step_count;
 const int z_gantry_steps_per_revolution = 1600;
 const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch GUESS
 const float z_gantry_length = 0.4; // 450mm or ~18" length but safety of 400mm
 const int max_z_gantry_steps = (z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 
-// IMU Globals
-// Earth's magnetic field varies by location. Add or subtract 
-// a declination to get a more accurate heading. Calculate 
-// your's here:
-// http://www.ngdc.noaa.gov/geomag-web/#declination
-#define DECLINATION 9.20 // Declination (degrees) in Pittsburgh, PA.
+// ROS Callback Functions and Subscribers
 
-LSM9DS1 imu;
-float heading;
-
-// Ultrasonic Sensor Globals
-long front_ultrasonic_range_duration;
-long right_ultrasonic_range_duration;
-float front_ultrasonic_range_distance;
-float right_ultrasonic_range_distance;
-char front_ultrasonic_frameid[] = "/front_ultrasonic";
-char right_ultrasonic_frameid[] = "/right_ultrasonic";
-
+// LED SWITCH
 // LED Switch Callback
 // Turns on the LEDs if the msg contains true, 
 // otherwise turns off the LEDs if the msg contains false
@@ -165,6 +184,10 @@ void ledSwitchCallback(const std_msgs::Bool& led_switch_msg){
   }
 }
 
+// LED Switch Subscriber
+ros::Subscriber<std_msgs::Bool> led_switch_sub("/TheBoatDoctor/LED_Switch", &ledSwitchCallback);
+
+// PUMP SWITCH
 // Pump Switch Callback
 // Turns on the pump if the msg contains true, 
 // otherwise turns off the pump if the msg contains false
@@ -181,37 +204,85 @@ void pumpSwitchCallback(const std_msgs::Bool& pump_switch_msg){
   }
 }
 
+ros::Subscriber<std_msgs::Bool> pump_switch_sub("/TheBoatDoctor/Pump_Switch", &pumpSwitchCallback);
+
+// STOP COMMAND
+// Stop Command Globals
+bool stop_flag = false;
+
 // Stop Command Callback
-// Immediately halts everything by setting all the motor control pins to LOW
-void stopCallback(const std_msgs::Empty& stop_msg){
-  digitalWrite(FrontMotorEnable, LOW);
-  digitalWrite(FrontMotorIn1, LOW);
-  digitalWrite(FrontMotorIn2, LOW);
+// Immediately halts everything by setting all the motor control pins to LOW and sets the stop_flag to true.
+// Remember to publish a false msg to restart the robot.
+void stopCallback(const std_msgs::Bool& stop_msg){
 
-  digitalWrite(LeftMotorEnable, LOW);
-  digitalWrite(LeftMotorIn1, LOW);
-  digitalWrite(LeftMotorIn2, LOW);
+  // If the stop_msg contains true, stop all of the motors
+  if(stop_msg.data)
+  {
+    // set stop_flag to true
+    stop_flag = true;
 
-  digitalWrite(BackMotorEnable, LOW); 
-  digitalWrite(BackMotorIn1, LOW);
-  digitalWrite(BackMotorIn2, LOW);
+    // disable all base motors by setting all the motor control pins to LOW
+    digitalWrite(FrontMotorEnable, LOW);
+    digitalWrite(FrontMotorIn1, LOW);
+    digitalWrite(FrontMotorIn2, LOW);
 
-  digitalWrite(RightMotorEnable, LOW);
-  digitalWrite(RightMotorIn1, LOW);
-  digitalWrite(RightMotorIn2, LOW);
-  
-  digitalWrite(PumpSwitch, LOW);
-  digitalWrite(LEDSwitch, LOW);
+    digitalWrite(LeftMotorEnable, LOW);
+    digitalWrite(LeftMotorIn1, LOW);
+    digitalWrite(LeftMotorIn2, LOW);
+
+    digitalWrite(BackMotorEnable, LOW); 
+    digitalWrite(BackMotorIn1, LOW);
+    digitalWrite(BackMotorIn2, LOW);
+
+    digitalWrite(RightMotorEnable, LOW);
+    digitalWrite(RightMotorIn1, LOW);
+    digitalWrite(RightMotorIn2, LOW);
+
+    // disable stepper motors by setting their enable lines to HIGH
+    digitalWrite(TurntableStepperEnable, HIGH);
+    digitalWrite(XGantryStepperEnable, HIGH);
+    digitalWrite(ZGantryStepperEnable, HIGH);
+    
+    // disable pump and LEDs by setting their switches to LOW
+    digitalWrite(PumpSwitch, LOW);
+    digitalWrite(LEDSwitch, LOW);
+  }
+  // Otherwise if the stop_msg contains false, set the stop_flag back to false
+  // and enable the stepper motors.
+  else
+  {
+    stop_flag = false;
+
+    // enable stepper motors by setting their enable lines to low
+    digitalWrite(TurntableStepperEnable, LOW);
+    digitalWrite(XGantryStepperEnable, LOW);
+    digitalWrite(ZGantryStepperEnable, LOW);
+  }
 }
+
+// Stop Command Subscriber
+ros::Subscriber<std_msgs::Bool> stop_sub("/TheBoatDoctor/Stop", &stopCallback);
+
+// HOME COMMAND
+// Home Command Globals
+bool home_x_gantry_flag = false;
+bool home_z_gantry_flag = false;
+bool home_turntable_flag = false;
 
 // Home Command Callback
-// Returns the robot to the home position
-void homeCallback(const std_msgs::Empty& stop_msg){
-  zeroZGantry();
-  zeroXGantry();
-  homeTurntable();
+// Returns the robot to the home position by setting the homing flags to true
+void homeCallback(const std_msgs::Empty& home_msg){
+  home_x_gantry_flag = true;
+  home_z_gantry_flag = true;
+  home_turntable_flag = true;
 }
 
+// Home Command Subscriber
+ros::Subscriber<std_msgs::Empty> home_sub("/TheBoatDoctor/Home", &homeCallback );
+
+// COMMAND POSITION
+// Command Position Callback
+// Moves the robot to a specified location in the testbed using the ultrasonic sensors and motor encoders
 void cmdPosCallback(const geometry_msgs::Pose2D& pose_2d_msg)
 {
   float current_x = front_ultrasonic_range_distance;
@@ -224,6 +295,12 @@ void cmdPosCallback(const geometry_msgs::Pose2D& pose_2d_msg)
   moveBase(desired_x, desired_y, desired_x - current_x, desired_y - current_y);
 }
 
+// Command Position Subscriber
+ros::Subscriber<geometry_msgs::Pose2D> cmd_pos_sub("/TheBoatDoctor/cmd_pos", cmdPosCallback);
+
+// COMMAND VELOCITY
+// Command Velocity Callback
+// Moves the robot at a given velocity
 void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
 {
   float desired_x_vel = twist_msg.linear.x;
@@ -236,7 +313,7 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
     digitalWrite(LeftMotorIn1, HIGH);
     digitalWrite(LeftMotorIn2, LOW);  
     digitalWrite(RightMotorIn1, LOW);
-    digitalWrite(RightMotorIn2, HIGH); 
+    digitalWrite(RightMotorIn2, HIGH);
     analogWrite(LeftMotorEnable, x_speed);
     analogWrite(RightMotorEnable, x_speed);
   }
@@ -276,28 +353,25 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
   }
 }
 
+// Command Velocity Subscriber
+ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("/TheBoatDoctor/cmd_vel", cmdVelCallback);
+
+// COMMAND JOINT POSITIONS
+// Command Joint Positions Callback
 void cmdJointPosCallback(const geometry_msgs::Point& cmd_joint_pos_msg)
 {
-  float current_x_gantry_position = x_gantry_position;
-  float current_z_gantry_position = z_gantry_position;
-  float current_turntable_theta = turntable_theta;
+  float desired_current_x_gantry_position = cmd_joint_pos_msg.x;
+  float desired_current_z_gantry_position = cmd_joint_pos_msg.z;
+  float desired_current_turntable_theta = cmd_joint_pos_msg.y;
 
-  float desired_x_gantry_position = cmd_joint_pos_msg.x;
-  float desired_z_gantry_position = cmd_joint_pos_msg.z;
-  float desired_turntable_theta = cmd_joint_pos_msg.y;
-
-  moveGantry(desired_x_gantry_position - current_x_gantry_position, desired_z_gantry_position - current_z_gantry_position);
-  turnTurntable(desired_turntable_theta - current_turntable_theta);
+  moveGantry(desired_current_x_gantry_position - current_x_gantry_position, desired_current_z_gantry_position - current_z_gantry_position);
+  turnTurntable(desired_current_turntable_theta - current_turntable_theta);
 }
 
-ros::Subscriber<std_msgs::Bool> led_switch_sub("/TheBoatDoctor/LED_Switch", &ledSwitchCallback );
-ros::Subscriber<std_msgs::Bool> pump_switch_sub("/TheBoatDoctor/Pump_Switch", &pumpSwitchCallback );
-ros::Subscriber<std_msgs::Empty> stop_sub("/TheBoatDoctor/Stop", &stopCallback );
-ros::Subscriber<std_msgs::Empty> home_sub("/TheBoatDoctor/Home", &homeCallback );
-ros::Subscriber<geometry_msgs::Pose2D> cmd_pos_sub("/TheBoatDoctor/cmd_pos", cmdPosCallback);
-ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("/TheBoatDoctor/cmd_vel", cmdVelCallback);
+// Command Joint Positions Subscriber
 ros::Subscriber<geometry_msgs::Point> cmd_joint_pos_sub("/TheBoatDoctor/cmd_joint_pos", cmdJointPosCallback);
 
+// INTERRUPT SERVICE ROUTINES
 // Interrupt Service Routines for Motor Encoders
 void front_motor_hallA_detect() 
 {
@@ -312,6 +386,11 @@ void front_motor_hallA_detect()
   } else {
     front_motor_encoder_count--;
   }
+
+  #ifdef PrintMotorEncoderValues
+    Serial.print("Front Motor Encoder Count:")
+    Serial.println(front_motor_encoder_count);
+  #endif
 }
 
 void left_motor_hallA_detect() 
@@ -327,6 +406,11 @@ void left_motor_hallA_detect()
   } else {
     left_motor_encoder_count--;
   }
+
+  #ifdef PrintMotorEncoderValues
+    Serial.print("Left Motor Encoder Count:")
+    Serial.println(left_motor_encoder_count);
+  #endif
 }
 
 void back_motor_hallA_detect() 
@@ -342,6 +426,11 @@ void back_motor_hallA_detect()
   } else {
     back_motor_encoder_count--;
   }
+
+  #ifdef PrintMotorEncoderValues
+    Serial.print("Back Motor Encoder Count:")
+    Serial.println(back_motor_encoder_count);
+  #endif
 }
 
 void right_motor_hallA_detect() 
@@ -357,8 +446,14 @@ void right_motor_hallA_detect()
   } else {
     right_motor_encoder_count--;
   }
+
+  #ifdef PrintMotorEncoderValues
+    Serial.print("Right Motor Encoder Count:")
+    Serial.println(right_motor_encoder_count);
+  #endif
 }
 
+// SETUP CODE
 void setup()
 { 
   // set all the base dc motor control pins to outputs
@@ -401,26 +496,34 @@ void setup()
   pinMode(RightMotorEncoderHallA, INPUT_PULLUP);
   pinMode(RightMotorEncoderHallB, INPUT_PULLUP);
 
-  // attach interrupts to all motor encoder hall A pins
-  attachInterrupt(1, front_motor_hallA_detect, CHANGE); //Initialize the interrupt pin digitalPinToInterrupt(FrontMotorEncoderHallA) = 1
-  attachInterrupt(0, left_motor_hallA_detect, CHANGE); //Initialize the interrupt pin digitalPinToInterrupt(LeftMotorEncoderHallA) = 0
-  attachInterrupt(5, back_motor_hallA_detect, CHANGE); //Initialize the interrupt pin digitalPinToInterrupt(BackMotorEncoderHallA) = 5
-  attachInterrupt(4, right_motor_hallA_detect, CHANGE); //Initialize the interrupt pin digitalPinToInterrupt(RightMotorEncoderHallA) = 4
+  // According to documentation here: https://www.arduino.cc/reference/en/language/functions/external-interrupts/attachinterrupt/
+  // digitalPin 2 = Interrupt 0
+  // digitalPin 3 = Interrupt 1
+  // digitalPin 21 = Interrupt 2
+  // digitalPin 20 = Interrupt 3
+  // digitalPin 19 = Interrupt 4
+  // digitalPin 18 = Interrupt 5
+
+  // Attach interrupts to all motor encoder hall A pins
+  // FrontMotorEncoderHallA is on pin 3
+  attachInterrupt(1, front_motor_hallA_detect, CHANGE); 
+  // LeftMotorEncoderHallA is on pin 2
+  attachInterrupt(0, left_motor_hallA_detect, CHANGE);
+  // BackMotorEncoderHallA is on pin 18
+  attachInterrupt(5, back_motor_hallA_detect, CHANGE);
+  // RightMotorEncoderHallA is on pin 19
+  attachInterrupt(4, right_motor_hallA_detect, CHANGE);
 
   // IMU setup and startup code
+  // Taken from https://learn.sparkfun.com/tutorials/lsm9ds1-breakout-hookup-guide
+  // Datasheet is here: https://cdn.sparkfun.com/assets/learn_tutorials/3/7/3/LSM9DS1_Datasheet.pdf
   imu.settings.device.commInterface = IMU_MODE_I2C; // Set mode to I2C
   imu.settings.device.mAddress = LSM9DS1_M; // Set mag address to 0x1E
   imu.settings.device.agAddress = LSM9DS1_AG; // Set ag address to 0x6B
   imu.settings.accel.scale = 8; // Set accel range to +/-8g
   imu.settings.gyro.scale = 2000; // Set gyro range to +/-2000dps
   imu.settings.mag.scale = 4; // Set mag range to +/-4Gs
-  if (!imu.begin())
-  {
-      Serial.println("Failed to communicate with LSM9DS1.");
-      Serial.println("Looping to infinity.");
-      while (1)
-        ;
-  }
+  imu.begin();
 
   // set ultrasonic sensor trigger pins to output and echo pins to input
   pinMode(FrontUltrasonicTrigger, OUTPUT);
@@ -454,6 +557,7 @@ void setup()
   // Advertise topics
   nh.advertise(front_ultrasonic_range_pub);
   nh.advertise(right_ultrasonic_range_pub);
+  nh.advertise(ultrasonic_pose_pub);
   nh.advertise(imu_pub);
   nh.advertise(joint_states_pub);
 
@@ -466,7 +570,7 @@ void setup()
   nh.subscribe(cmd_vel_sub);
   nh.subscribe(cmd_joint_pos_sub);
 
-  // Ultrasonic Sensor Setup Code
+  // Ultrasonic Sensor Msg Setup Code
   front_ultrasonic_range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
   front_ultrasonic_range_msg.header.frame_id = front_ultrasonic_frameid;
   front_ultrasonic_range_msg.field_of_view = 0.2618;  // 15 degrees field of view
@@ -479,7 +583,7 @@ void setup()
   right_ultrasonic_range_msg.min_range = 0.0;
   right_ultrasonic_range_msg.max_range = 4;
 
-  // IMU Setup Code
+  // IMU Msg Setup Code
 
   // From datasheet, 1 gauss std deviation
 
@@ -497,7 +601,7 @@ void setup()
   imu_msg.linear_acceleration_covariance[4] = 0.777;
   imu_msg.linear_acceleration_covariance[8] = 0.777;
 
-  // Joint States Setup Code
+  // Joint States Msg Setup Code
   joint_states_msg.name_length = 3;
   joint_states_msg.velocity_length = 3;
   joint_states_msg.position_length = 3;
@@ -505,44 +609,55 @@ void setup()
   joint_states_msg.name = joint_names;
 }
 
-void homeTurntable()
+bool determineHoming()
 {
-  if(turntable_step_count > 0)
-  {
-    digitalWrite(TurntableStepperDirection, LOW);
-    for (int i = 1; i < turntable_step_count; i++)
-    {
-     digitalWrite(TurntableStepperPulse, HIGH);
-     digitalWrite(TurntableStepperPulse, LOW);
-
-     delayMicroseconds(10000);
-    }
-  }
-  else
-  {
-    digitalWrite(TurntableStepperDirection, HIGH);
-    for (int i = 1; i < -turntable_step_count; i++)
-    {
-     digitalWrite(TurntableStepperPulse, HIGH);
-     digitalWrite(TurntableStepperPulse, LOW);
-
-     delayMicroseconds(10000);
-    }
-  }
-  turntable_theta = 0.0;
-  turntable_step_count = 0;
+  return (home_x_gantry_flag || home_z_gantry_flag || home_turntable_flag);
 }
 
-void zeroXGantry()
+void home()
+{
+  if(home_x_gantry_flag)
+  {
+    homeXGantry();
+  }
+  else if(home_z_gantry_flag)
+  {
+    homeZGantry();
+  }
+  else if(home_turntable_flag)
+  {
+    homeTurntable();
+  }
+}
+
+void homeXGantry()
 {
   digitalWrite(XGantryStepperDirection, LOW);
-  while (digitalRead(XAxisLimitSwitch) != 0)
+  digitalWrite(XGantryStepperPulse, HIGH);
+  digitalWrite(XGantryStepperPulse, LOW);
+  x_gantry_step_count--;
+
+  // Check to see if the X Axis Limit Switch was hit
+  if(digitalRead(XAxisLimitSwitch) == 0)
   {         
-   digitalWrite(XGantryStepperPulse, HIGH);
-   digitalWrite(XGantryStepperPulse, LOW);
-   
-   delayMicroseconds(1000);
+    // Conduct the X Gantry Calibration Sequence
+    XGantryCalibrationSequence();
+
+    // Set the x_gantry_step_count to 0
+    x_gantry_step_count = 0;
+
+    // Set the home_x_gantry_flag to false because the x_gantry was successfully homed
+    home_x_gantry_flag = false;
   }
+
+  // Update current_x_gantry_position with the current x_gantry_step_count
+  current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+}
+
+// Conducts the X Gantry Calibration Sequence after the Limit Switch has been hit, which involves 
+// moving the X Gantry out until the Limit Switch is no longer clicked.
+void XGantryCalibrationSequence()
+{
   digitalWrite(XGantryStepperDirection, HIGH);
   while (digitalRead(XAxisLimitSwitch) != 1)
   {
@@ -558,21 +673,37 @@ void zeroXGantry()
 
    delayMicroseconds(1000);
   }
-  x_gantry_position = 0.0;
-  x_gantry_step_count = 0;
 }
 
-void zeroZGantry()
+void homeZGantry()
+{
+  digitalWrite(ZGantryStepperDirection, HIGH);
+  digitalWrite(ZGantryStepperPulse, HIGH);
+  digitalWrite(ZGantryStepperPulse, LOW);
+  z_gantry_step_count--;
+
+  // Check to see if the Z Axis Limit Switch was hit
+  if(digitalRead(ZAxisLimitSwitch) == 0)
+  {         
+    // Conduct the Z Gantry Calibration Sequence
+    ZGantryCalibrationSequence();
+    
+    // Set the z_gantry_step_count to 0
+    z_gantry_step_count = 0;
+
+    // Set the home_z_gantry_flag to false because the z_gantry was successfully homed
+    home_z_gantry_flag = false;
+  }
+
+  // Update current_z_gantry_position with the current z_gantry_step_count
+  current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+}
+
+// Conducts the Z Gantry Calibration Sequence after the Limit Switch has been hit, which involves 
+// moving the Z Gantry out until the Limit Switch is no longer clicked.
+void ZGantryCalibrationSequence()
 {
   digitalWrite(ZGantryStepperDirection, LOW);
-  while (digitalRead(ZAxisLimitSwitch) != 0)
-  {         
-   digitalWrite(ZGantryStepperPulse, HIGH);
-   digitalWrite(ZGantryStepperPulse, LOW);
-   
-   delayMicroseconds(1000);
-  }
-  digitalWrite(ZGantryStepperDirection, HIGH);
   while (digitalRead(ZAxisLimitSwitch) != 1)
   {
    digitalWrite(ZGantryStepperPulse, HIGH);
@@ -587,8 +718,29 @@ void zeroZGantry()
 
    delayMicroseconds(1000);
   }
-  z_gantry_position = 0.0;
-  z_gantry_step_count = 0;
+}
+
+void homeTurntable()
+{
+  if(current_turntable_step_count > 0)
+  {
+    digitalWrite(TurntableStepperDirection, HIGH);
+    digitalWrite(TurntableStepperPulse, HIGH);
+    digitalWrite(TurntableStepperPulse, LOW);
+    current_turntable_step_count--;
+  }
+  else if(current_turntable_step_count < 0)
+  {
+    digitalWrite(TurntableStepperDirection, LOW);
+    digitalWrite(TurntableStepperPulse, HIGH);
+    digitalWrite(TurntableStepperPulse, LOW);
+    current_turntable_step_count++;
+  }
+  else if(current_turntable_step_count == 0)
+  {
+    home_turntable_flag = false;
+  }
+  current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
 }
 
 void updateTransform()
@@ -650,6 +802,126 @@ void publishIMU()
   imu_pub.publish(&imu_msg);
 }
 
+// 
+void readUltrasonicSensors(){
+  // Set the trigger to Low for a little while initially
+  digitalWrite(FrontUltrasonicTrigger, LOW);
+  delayMicroseconds(3);
+  // Set the trigger to High for 10 microseconds according to the datasheet
+  digitalWrite(FrontUltrasonicTrigger, HIGH);
+  delayMicroseconds(10);
+  // Set the trigger back to low
+  digitalWrite(FrontUltrasonicTrigger, LOW);
+
+  // Wait for the echo with a timeout of 23.28ms 
+  front_ultrasonic_range_duration = pulseIn(FrontUltrasonicEcho, HIGH, 23280);
+  
+  // Find the distance in cm based on the duration
+  // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
+  front_ultrasonic_range_distance = (front_ultrasonic_range_duration / 2) / 29.1;
+
+  // Set the trigger to Low for a little while initially
+  digitalWrite(RightUltrasonicTrigger, LOW);
+  delayMicroseconds(3);
+  // Set the trigger to High for 10 microseconds according to the datasheet
+  digitalWrite(RightUltrasonicTrigger, HIGH);
+  delayMicroseconds(10);
+  // Set the trigger back to low
+  digitalWrite(RightUltrasonicTrigger, LOW);
+
+  // Wait for the echo with a timeout of 23.28ms
+  right_ultrasonic_range_duration = pulseIn(RightUltrasonicEcho, HIGH, 23280);
+  
+  // Find the distance in cm based on the duration
+  // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
+  right_ultrasonic_range_distance = (right_ultrasonic_range_duration / 2) / 29.1;
+}
+
+// Publish the current ultrasonic info from the front and right ultrasonic sensors to ROS
+void publishUltrasonicInfo()
+{
+  front_ultrasonic_range_msg.range = front_ultrasonic_range_distance / 100;
+  front_ultrasonic_range_msg.header.stamp = nh.now();
+  right_ultrasonic_range_msg.range = right_ultrasonic_range_distance / 100;
+  right_ultrasonic_range_msg.header.stamp = nh.now();
+  ultrasonic_pose_msg.x = (front_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
+  ultrasonic_pose_msg.y = (right_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
+  front_ultrasonic_range_pub.publish(&front_ultrasonic_range_msg);
+  right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
+  ultrasonic_pose_pub.publish(&ultrasonic_pose_msg);
+}
+
+// Publish the current joint state positions of the turntable, x-gantry, and z-gantry to ROS
+void publishJointStates()
+{
+  joint_states_msg.header.stamp = nh.now();
+  joint_state_positions[0] = current_turntable_theta;
+  joint_state_positions[1] = current_x_gantry_position;
+  joint_state_positions[2] =  current_z_gantry_position;
+  joint_states_msg.position = joint_state_positions;
+  joint_states_pub.publish(&joint_states_msg);
+}
+
+// LOOP CODE
+void loop()
+{
+  // If the robot is not currently in the stop mode
+  if(!stop_flag)
+  {
+    if(determineHoming())
+    {
+      home();
+    }
+    else
+    {
+      if(move_gantry_flag)
+      {
+        moveGantry();
+      } 
+      else if(move_turntable_flag)
+      {
+        moveTurntable();
+      }
+      else if(move_base_flag)
+      {
+        moveBase();
+      }
+    }
+  }
+  
+  updateTransform();
+  publishTransform();
+
+  updateIMU();
+  publishIMU();
+
+  readUltrasonicSensors();
+  publishUltrasonicInfo();
+
+  publishJointStates();
+
+  nh.spinOnce();
+  delay(10);
+}
+
+void moveBase()
+{
+
+}
+
+void moveGantry()
+{
+
+}
+
+void moveTurntable()
+{
+  
+}
+
+
+// TODO: FIX THESE
+/*
 void moveBase(float desired_x, float desired_y, float x_dist, float y_dist)
 {
   int current_front_motor_encoder_count = front_motor_encoder_count;
@@ -819,12 +1091,13 @@ void moveGantry(float x_gantry_dist, float z_gantry_dist)
 
   if(num_x_gantry_steps > 0)
   {
+    // Move X Gantry Forward
     digitalWrite(XGantryStepperDirection, HIGH);
     for (int i = 0; i < num_x_gantry_steps; i++)
     {         
       if(x_gantry_step_count >= max_x_gantry_steps)
       {
-        x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+        current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
         return;
       }
       digitalWrite(XGantryStepperPulse, HIGH);
@@ -836,12 +1109,13 @@ void moveGantry(float x_gantry_dist, float z_gantry_dist)
   }
   else
   {
+    // Move X Gantry Back
     digitalWrite(XGantryStepperDirection, LOW);
     for (int i = 0; i < -num_x_gantry_steps; i++)
     {         
       if(x_gantry_step_count == 0)
       {
-        x_gantry_position = 0.0;
+        current_x_gantry_position = 0.0;
         return;
       }
       digitalWrite(XGantryStepperPulse, HIGH);
@@ -851,16 +1125,17 @@ void moveGantry(float x_gantry_dist, float z_gantry_dist)
       delayMicroseconds(300);
     }
   }
-  x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+  current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
 
   if(num_z_gantry_steps > 0)
   {
-    digitalWrite(ZGantryStepperDirection, HIGH);
+    // Move Z Gantry Up
+    digitalWrite(ZGantryStepperDirection, LOW);
     for (int i = 0; i < num_z_gantry_steps; i++)
     {         
       if(z_gantry_step_count >= max_z_gantry_steps)
       {
-        z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+        current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
         return;
       }
       digitalWrite(ZGantryStepperPulse, HIGH);
@@ -872,12 +1147,13 @@ void moveGantry(float x_gantry_dist, float z_gantry_dist)
   }
   else
   {
-    digitalWrite(ZGantryStepperDirection, LOW);
+    // Move Z Gantry Down
+    digitalWrite(ZGantryStepperDirection, HIGH);
     for (int i = 0; i < -num_z_gantry_steps; i++)
     {         
       if(z_gantry_step_count == 0)
       {
-        z_gantry_position = 0.0;
+        current_z_gantry_position = 0.0;
         return;
       }
       digitalWrite(ZGantryStepperPulse, HIGH);
@@ -887,7 +1163,7 @@ void moveGantry(float x_gantry_dist, float z_gantry_dist)
       delayMicroseconds(300);
     }
   }
-  z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+  current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
 }
 
 void turnTurntable(float theta)
@@ -895,18 +1171,18 @@ void turnTurntable(float theta)
   if(theta > 0)
   {
     int num_turntable_steps = (theta / (2 * PI)) * turntable_steps_per_revolution;
-    digitalWrite(TurntableStepperDirection, HIGH);
+    digitalWrite(TurntableStepperDirection, LOW);
     for (int i = 1; i < num_turntable_steps; i++)
     {
-      if(turntable_step_count >= max_turntable_steps)
+      if(current_turntable_step_count >= max_turntable_steps)
       {
-        turntable_theta = (turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
         return;
       }
 
       digitalWrite(TurntableStepperPulse, HIGH);
       digitalWrite(TurntableStepperPulse, LOW);
-      turntable_step_count++;
+      current_turntable_step_count++;
 
       delayMicroseconds(10000);
     }
@@ -914,92 +1190,21 @@ void turnTurntable(float theta)
   else
   {
     int num_turntable_steps = (-theta / (2 * PI)) * turntable_steps_per_revolution;
-    digitalWrite(TurntableStepperDirection, LOW);
+    digitalWrite(TurntableStepperDirection, HIGH);
     for (int i = 1; i < num_turntable_steps; i++)
     {
-      if(turntable_step_count <= min_turntable_steps)
+      if(current_turntable_step_count <= min_turntable_steps)
       {
-        turntable_theta = (turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
         return;
       }
 
       digitalWrite(TurntableStepperPulse, HIGH);
       digitalWrite(TurntableStepperPulse, LOW);
-      turntable_step_count--;
+      current_turntable_step_count--;
 
       delayMicroseconds(10000);
     }
   }
-  turntable_theta = (turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
-}
-
-void readUltrasonicSensors(){
-  // Set the trigger to Low for a little while initially
-  digitalWrite(FrontUltrasonicTrigger, LOW);
-  delayMicroseconds(3);
-  // Set the trigger to High for 10 microseconds according to the datasheet
-  digitalWrite(FrontUltrasonicTrigger, HIGH);
-  delayMicroseconds(10);
-  // Set the trigger back to low
-  digitalWrite(FrontUltrasonicTrigger, LOW);
-
-  // Wait for the echo with a timeout of 23.28ms 
-  front_ultrasonic_range_duration = pulseIn(FrontUltrasonicEcho, HIGH, 23280);
-  
-  // Find the distance in cm based on the duration
-  // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
-  front_ultrasonic_range_distance = (front_ultrasonic_range_duration / 2) / 29.1;
-
-  // Set the trigger to Low for a little while initially
-  digitalWrite(RightUltrasonicTrigger, LOW);
-  delayMicroseconds(3);
-  // Set the trigger to High for 10 microseconds according to the datasheet
-  digitalWrite(RightUltrasonicTrigger, HIGH);
-  delayMicroseconds(10);
-  // Set the trigger back to low
-  digitalWrite(RightUltrasonicTrigger, LOW);
-
-  // Wait for the echo with a timeout of 23.28ms
-  right_ultrasonic_range_duration = pulseIn(RightUltrasonicEcho, HIGH, 23280);
-  
-  // Find the distance in cm based on the duration
-  // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
-  right_ultrasonic_range_distance = (right_ultrasonic_range_duration / 2) / 29.1;
-}
-
-void publishUltrasonicRangeMsgs()
-{
-  front_ultrasonic_range_msg.range = front_ultrasonic_range_distance / 100;
-  front_ultrasonic_range_msg.header.stamp = nh.now();
-  right_ultrasonic_range_msg.range = right_ultrasonic_range_distance / 100;
-  right_ultrasonic_range_msg.header.stamp = nh.now();
-  front_ultrasonic_range_pub.publish(&front_ultrasonic_range_msg);
-  right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
-}
-
-void publishJointStates()
-{
-  joint_states_msg.header.stamp = nh.now();
-  joint_state_positions[0] = turntable_theta;
-  joint_state_positions[1] = x_gantry_position;
-  joint_state_positions[2] =  z_gantry_position;
-  joint_states_msg.position = joint_state_positions;
-  joint_states_pub.publish(&joint_states_msg);
-}
-
-void loop()
-{
-  updateTransform();
-  publishTransform();
-
-  updateIMU();
-  publishIMU();
-
-  readUltrasonicSensors();
-  publishUltrasonicRangeMsgs();
-
-  publishJointStates();
-
-  nh.spinOnce();
-  delay(10);
-}
+  current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+}*/
