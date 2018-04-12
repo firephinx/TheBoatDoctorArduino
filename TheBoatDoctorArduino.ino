@@ -281,6 +281,9 @@ void homeCallback(const std_msgs::Empty& home_msg){
 ros::Subscriber<std_msgs::Empty> home_sub("/TheBoatDoctor/Home", &homeCallback );
 
 // COMMAND POSITION
+// Command Position Globals
+bool move_base_flag = false;
+
 // Command Position Callback
 // Moves the robot to a specified location in the testbed using the ultrasonic sensors and motor encoders
 void cmdPosCallback(const geometry_msgs::Pose2D& pose_2d_msg)
@@ -292,7 +295,7 @@ void cmdPosCallback(const geometry_msgs::Pose2D& pose_2d_msg)
   float desired_y = pose_2d_msg.y;
   float desired_theta = pose_2d_msg.theta;
 
-  moveBase(desired_x, desired_y, desired_x - current_x, desired_y - current_y);
+  //moveBase(desired_x, desired_y, desired_x - current_x, desired_y - current_y);
 }
 
 // Command Position Subscriber
@@ -306,7 +309,16 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
   float desired_x_vel = twist_msg.linear.x;
   float desired_y_vel = twist_msg.linear.y;
 
-  if(desired_x_vel > 0)
+  if (desired_x_vel == 0.0)
+  {
+    digitalWrite(LeftMotorEnable, LOW);
+    digitalWrite(RightMotorEnable, LOW);
+    digitalWrite(LeftMotorIn1, LOW);
+    digitalWrite(LeftMotorIn2, LOW);  
+    digitalWrite(RightMotorIn1, LOW);
+    digitalWrite(RightMotorIn2, LOW);
+  }
+  else if  (desired_x_vel > 0.0)
   {
     // Backward
     int x_speed = max((desired_x_vel / max_base_speed), 1.0) * 255;
@@ -329,7 +341,16 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
     analogWrite(RightMotorEnable, x_speed);
   }
 
-  if(desired_y_vel > 0)
+  if(desired_y_vel == 0.0)
+  {
+    digitalWrite(FrontMotorEnable, LOW);
+    digitalWrite(BackMotorEnable, LOW);
+    digitalWrite(FrontMotorIn1, LOW);
+    digitalWrite(FrontMotorIn2, LOW);  
+    digitalWrite(BackMotorIn1, LOW);
+    digitalWrite(BackMotorIn2, LOW);
+  }
+  else if(desired_y_vel > 0.0)
   {
     // Left
     int y_speed = max((desired_y_vel / max_base_speed), 1.0) * 255;
@@ -357,6 +378,10 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
 ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("/TheBoatDoctor/cmd_vel", cmdVelCallback);
 
 // COMMAND JOINT POSITIONS
+// Command Joint Positions Globals
+bool move_gantry_flag = false;
+bool turn_turntable_flag = false;
+
 // Command Joint Positions Callback
 void cmdJointPosCallback(const geometry_msgs::Point& cmd_joint_pos_msg)
 {
@@ -364,8 +389,8 @@ void cmdJointPosCallback(const geometry_msgs::Point& cmd_joint_pos_msg)
   float desired_current_z_gantry_position = cmd_joint_pos_msg.z;
   float desired_current_turntable_theta = cmd_joint_pos_msg.y;
 
-  moveGantry(desired_current_x_gantry_position - current_x_gantry_position, desired_current_z_gantry_position - current_z_gantry_position);
-  turnTurntable(desired_current_turntable_theta - current_turntable_theta);
+  //moveGantry(desired_current_x_gantry_position - current_x_gantry_position, desired_current_z_gantry_position - current_z_gantry_position);
+  //turnTurntable(desired_current_turntable_theta - current_turntable_theta);
 }
 
 // Command Joint Positions Subscriber
@@ -878,9 +903,9 @@ void loop()
       {
         moveGantry();
       } 
-      else if(move_turntable_flag)
+      else if(turn_turntable_flag)
       {
-        moveTurntable();
+        turnTurntable();
       }
       else if(move_base_flag)
       {
@@ -914,9 +939,9 @@ void moveGantry()
 
 }
 
-void moveTurntable()
+void turnTurntable()
 {
-  
+
 }
 
 
