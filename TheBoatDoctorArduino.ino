@@ -980,8 +980,9 @@ void moveXGantry()
     // Move X Gantry Forward
     digitalWrite(XGantryStepperDirection, HIGH);
 
-    for (int i = 0; i < min(10, num_x_gantry_steps); i++)
-    {         
+    int num_steps_taken = 0;
+    while(num_steps_taken < num_x_gantry_steps && !stop_flag)
+    {
       if(x_gantry_step_count >= max_x_gantry_steps)
       {
         current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
@@ -991,7 +992,11 @@ void moveXGantry()
       digitalWrite(XGantryStepperPulse, HIGH);
       digitalWrite(XGantryStepperPulse, LOW);
       x_gantry_step_count++;
+      num_steps_taken++;
+      current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
 
+      publishJointStates();
+      nh.spinOnce();
       delayMicroseconds(300);
     }
   }
@@ -1000,8 +1005,9 @@ void moveXGantry()
     // Move X Gantry Back
     digitalWrite(XGantryStepperDirection, LOW);
 
-    for (int i = 0; i < min(10, -num_x_gantry_steps); i++)
-    {         
+    int num_steps_taken = 0;
+    while(num_steps_taken < -num_x_gantry_steps && !stop_flag)
+    {
       if(x_gantry_step_count == 0)
       {
         current_x_gantry_position = 0.0;
@@ -1011,12 +1017,15 @@ void moveXGantry()
       digitalWrite(XGantryStepperPulse, HIGH);
       digitalWrite(XGantryStepperPulse, LOW);
       x_gantry_step_count--;
+      num_steps_taken++;
+      current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
 
+      publishJointStates();
+      nh.spinOnce();
       delayMicroseconds(300);
     }
   }
-  current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
-
+  
   if(abs(current_x_gantry_position - desired_x_gantry_position) <= x_gantry_threshold)
   {
     move_x_gantry_flag = false;
