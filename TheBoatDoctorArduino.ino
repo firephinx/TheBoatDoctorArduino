@@ -1086,22 +1086,23 @@ void turnTurntable()
   {
     // Turn Clockwise
     digitalWrite(TurntableStepperDirection, HIGH);
-    digitalWrite(TurntableStepperPulse, HIGH);
-    digitalWrite(TurntableStepperPulse, LOW);
-    current_turntable_step_count++;
-    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+//    digitalWrite(TurntableStepperPulse, HIGH);
+//    digitalWrite(TurntableStepperPulse, LOW);
+//    current_turntable_step_count++;
+//    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+//
+//    if(current_turntable_step_count >= max_turntable_steps)
+//    {
+//      turn_turntable_flag = false;
+//      return;
+//    }
 
-    if(current_turntable_step_count >= max_turntable_steps)
-    {
-      turn_turntable_flag = false;
-      return;
-    }
-
-    /*for (int i = 1; i < num_turntable_steps; i++)
+    for (int i = 1; i < num_turntable_steps; i++)
     {
       if(current_turntable_step_count >= max_turntable_steps)
       {
         current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        turn_turntable_flag = false;
         return;
       }
 
@@ -1110,28 +1111,31 @@ void turnTurntable()
       current_turntable_step_count++;
 
       delayMicroseconds(10000);
-    }*/
+    }
+    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+    turn_turntable_flag = false;
   }
   else
   {
     // Turn Counter Clockwise
     digitalWrite(TurntableStepperDirection, LOW);
-    digitalWrite(TurntableStepperPulse, HIGH);
-    digitalWrite(TurntableStepperPulse, LOW);
-    current_turntable_step_count--;
-    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+//    digitalWrite(TurntableStepperPulse, HIGH);
+//    digitalWrite(TurntableStepperPulse, LOW);
+//    current_turntable_step_count--;
+//    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+//
+//    if(current_turntable_step_count <= min_turntable_steps)
+//    {
+//      turn_turntable_flag = false;
+//      return;
+//    }
 
-    if(current_turntable_step_count <= min_turntable_steps)
-    {
-      turn_turntable_flag = false;
-      return;
-    }
-
-    /*for (int i = 1; i < num_turntable_steps; i++)
+    for (int i = 1; i < -num_turntable_steps; i++)
     {
       if(current_turntable_step_count <= min_turntable_steps)
       {
         current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        turn_turntable_flag = false;
         return;
       }
 
@@ -1140,7 +1144,9 @@ void turnTurntable()
       current_turntable_step_count--;
 
       delayMicroseconds(10000);
-    }*/
+    }
+    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+    turn_turntable_flag = false;
   }
 }
 
