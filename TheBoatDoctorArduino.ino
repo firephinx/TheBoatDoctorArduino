@@ -156,6 +156,7 @@ const int x_gantry_steps_per_revolution = 1600;
 const float x_gantry_distance_per_revolution = 0.005; // 5 mm pitch
 const float x_gantry_length = 0.25; // 300 mm length, but safety of 250mm
 const int max_x_gantry_steps = (x_gantry_length / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
+const float x_gantry_threshold = x_gantry_distance_per_revolution / x_gantry_steps_per_revolution;
 
 // Z Gantry Globals
 float current_z_gantry_position;
@@ -164,6 +165,7 @@ const int z_gantry_steps_per_revolution = 1600;
 const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch GUESS
 const float z_gantry_length = 0.4; // 450mm or ~18" length but safety of 400mm
 const int max_z_gantry_steps = (z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
+const float z_gantry_threshold = z_gantry_distance_per_revolution / z_gantry_steps_per_revolution;
 
 // ROS Callback Functions and Subscribers
 
@@ -382,18 +384,32 @@ ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("/TheBoatDoctor/cmd_vel", cmdV
 
 // COMMAND JOINT POSITIONS
 // Command Joint Positions Globals
-bool move_gantry_flag = false;
+bool move_x_gantry_flag = false;
+bool move_z_gantry_flag = false;
 bool turn_turntable_flag = false;
+float desired_turntable_theta;
+float desired_x_gantry_position;
+float desired_z_gantry_position;
 
 // Command Joint Positions Callback
 void cmdJointPosCallback(const geometry_msgs::Point& cmd_joint_pos_msg)
 {
-  float desired_current_x_gantry_position = cmd_joint_pos_msg.x;
-  float desired_current_z_gantry_position = cmd_joint_pos_msg.z;
-  float desired_current_turntable_theta = cmd_joint_pos_msg.y;
-
-  //moveGantry(desired_current_x_gantry_position - current_x_gantry_position, desired_current_z_gantry_position - current_z_gantry_position);
-  //turnTurntable(desired_current_turntable_theta - current_turntable_theta);
+  desired_turntable_theta = cmd_joint_pos_msg.y;
+  desired_x_gantry_position = cmd_joint_pos_msg.x;
+  desired_z_gantry_position = cmd_joint_pos_msg.z;
+  
+  if(desired_x_gantry_position != current_x_gantry_position)
+  {
+    move_x_gantry_flag = true;
+  } 
+  if(desired_z_gantry_position != current_z_gantry_position)
+  {
+    move_z_gantry_flag = true;
+  }
+  if(desired_turntable_theta != current_turntable_theta)
+  {
+    turn_turntable_flag = true;
+  }
 }
 
 // Command Joint Positions Subscriber
@@ -916,10 +932,14 @@ void loop()
     }
     else
     {
-      if(move_gantry_flag)
+      if(move_x_gantry_flag)
       {
-        moveGantry();
+        moveXGantry();
       } 
+      else if(move_z_gantry_flag)
+      {
+        moveZGantry();
+      }
       else if(turn_turntable_flag)
       {
         turnTurntable();
@@ -951,20 +971,150 @@ void moveBase()
 
 }
 
-void moveGantry()
+void moveXGantry()
 {
+  int num_x_gantry_steps = (desired_x_gantry_position - current_x_gantry_position / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
 
+  if(num_x_gantry_steps > 0)
+  {
+    // Move X Gantry Forward
+    digitalWrite(XGantryStepperDirection, HIGH);
+
+    for (int i = 0; i < min(10, num_x_gantry_steps); i++)
+    {         
+      if(x_gantry_step_count >= max_x_gantry_steps)
+      {
+        current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+        move_x_gantry_flag = false;
+        return;
+      }
+      digitalWrite(XGantryStepperPulse, HIGH);
+      digitalWrite(XGantryStepperPulse, LOW);
+      x_gantry_step_count++;
+
+      delayMicroseconds(300);
+    }
+  }
+  else
+  {
+    // Move X Gantry Back
+    digitalWrite(XGantryStepperDirection, LOW);
+
+    for (int i = 0; i < min(10, -num_x_gantry_steps); i++)
+    {         
+      if(x_gantry_step_count == 0)
+      {
+        current_x_gantry_position = 0.0;
+        move_x_gantry_flag = false;
+        return;
+      }
+      digitalWrite(XGantryStepperPulse, HIGH);
+      digitalWrite(XGantryStepperPulse, LOW);
+      x_gantry_step_count--;
+
+      delayMicroseconds(300);
+    }
+  }
+  current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+
+  if(abs(current_x_gantry_position - desired_x_gantry_position) <= x_gantry_threshold)
+  {
+    move_x_gantry_flag = false;
+  }
+}
+
+void moveZGantry()
+{
+  int num_z_gantry_steps = (desired_z_gantry_position - current_z_gantry_position / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
+
+  if(num_z_gantry_steps > 0)
+  {
+    // Move Z Gantry Up
+    digitalWrite(ZGantryStepperDirection, LOW);
+
+    for (int i = 0; i < min(10, num_z_gantry_steps); i++)
+    {         
+      if(z_gantry_step_count >= max_z_gantry_steps)
+      {
+        current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+        move_z_gantry_flag = false;
+        return;
+      }
+      digitalWrite(ZGantryStepperPulse, HIGH);
+      digitalWrite(ZGantryStepperPulse, LOW);
+      z_gantry_step_count++;
+
+      delayMicroseconds(300);
+    }
+  }
+  else
+  {
+    // Move Z Gantry Down
+    digitalWrite(ZGantryStepperDirection, HIGH);
+
+    for (int i = 0; i < min(10, -num_z_gantry_steps); i++)
+    {         
+      if(z_gantry_step_count == 0)
+      {
+        current_z_gantry_position = 0.0;
+        move_z_gantry_flag = false;
+        return;
+      }
+      digitalWrite(ZGantryStepperPulse, HIGH);
+      digitalWrite(ZGantryStepperPulse, LOW);
+      z_gantry_step_count--;
+
+      delayMicroseconds(300);
+    }
+  }
+  current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+
+  if(abs(current_z_gantry_position - desired_z_gantry_position) <= z_gantry_threshold)
+  {
+    move_z_gantry_flag = false;
+  }
 }
 
 void turnTurntable()
 {
+  int num_turntable_steps = (desired_turntable_theta / (2 * PI)) * turntable_steps_per_revolution;
 
+  if(num_turntable_steps > 0)
+  {
+    // Turn Clockwise
+    digitalWrite(TurntableStepperDirection, LOW);
+    digitalWrite(TurntableStepperPulse, HIGH);
+    digitalWrite(TurntableStepperPulse, LOW);
+    current_turntable_step_count++;
+    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+
+    if(current_turntable_step_count >= max_turntable_steps)
+    {
+      turn_turntable_flag = false;
+      return;
+    }
+  }
+  else
+  {
+    // Turn Counter Clockwise
+    digitalWrite(TurntableStepperDirection, HIGH);
+    digitalWrite(TurntableStepperPulse, HIGH);
+    digitalWrite(TurntableStepperPulse, LOW);
+    current_turntable_step_count--;
+    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+
+    if(current_turntable_step_count <= min_turntable_steps)
+    {
+      turn_turntable_flag = false;
+      return;
+    }
+  }
 }
 
 
 // TODO: FIX THESE
-/*
-void moveBase(float desired_x, float desired_y, float x_dist, float y_dist)
+
+/*void moveBase(float desired_x, float desired_y, float x_dist, float y_dist)
 {
   int current_front_motor_encoder_count = front_motor_encoder_count;
   int current_left_motor_encoder_count = left_motor_encoder_count;
@@ -1128,7 +1278,7 @@ void moveBase(float desired_x, float desired_y, float x_dist, float y_dist)
 
 void moveGantry(float x_gantry_dist, float z_gantry_dist)
 {
-  int num_x_gantry_steps = (x_gantry_dist / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
+  
   int num_z_gantry_steps = (z_gantry_dist / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 
   if(num_x_gantry_steps > 0)
