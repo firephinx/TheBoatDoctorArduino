@@ -306,71 +306,74 @@ ros::Subscriber<geometry_msgs::Pose2D> cmd_pos_sub("/TheBoatDoctor/cmd_pos", cmd
 // Moves the robot at a given velocity
 void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
 {
-  float desired_x_vel = twist_msg.linear.x;
-  float desired_y_vel = twist_msg.linear.y;
+  if(!stop_flag)
+  {
+    float desired_x_vel = twist_msg.linear.x;
+    float desired_y_vel = twist_msg.linear.y;
 
-  if (desired_x_vel == 0.0)
-  {
-    digitalWrite(LeftMotorEnable, LOW);
-    digitalWrite(RightMotorEnable, LOW);
-    digitalWrite(LeftMotorIn1, LOW);
-    digitalWrite(LeftMotorIn2, LOW);  
-    digitalWrite(RightMotorIn1, LOW);
-    digitalWrite(RightMotorIn2, LOW);
-  }
-  else if  (desired_x_vel < 0.0)
-  {
-    // Forward
-    int x_speed = max((desired_x_vel / max_base_speed), 1.0) * 255;
-    digitalWrite(LeftMotorIn1, HIGH);
-    digitalWrite(LeftMotorIn2, LOW);  
-    digitalWrite(RightMotorIn1, LOW);
-    digitalWrite(RightMotorIn2, HIGH);
-    analogWrite(LeftMotorEnable, x_speed);
-    analogWrite(RightMotorEnable, x_speed);
-  }
-  else
-  {
-    // Backward
-    int x_speed = max((-desired_x_vel / max_base_speed), 1.0) * 255;
-    digitalWrite(LeftMotorIn1, LOW);
-    digitalWrite(LeftMotorIn2, HIGH);  
-    digitalWrite(RightMotorIn1, HIGH);
-    digitalWrite(RightMotorIn2, LOW);
-    analogWrite(LeftMotorEnable, x_speed);
-    analogWrite(RightMotorEnable, x_speed);
-  }
+    if (desired_x_vel == 0.0)
+    {
+      digitalWrite(LeftMotorEnable, LOW);
+      digitalWrite(RightMotorEnable, LOW);
+      digitalWrite(LeftMotorIn1, LOW);
+      digitalWrite(LeftMotorIn2, LOW);  
+      digitalWrite(RightMotorIn1, LOW);
+      digitalWrite(RightMotorIn2, LOW);
+    }
+    else if  (desired_x_vel < 0.0)
+    {
+      // Forward
+      int x_speed = max((desired_x_vel / max_base_speed), 1.0) * 255;
+      digitalWrite(LeftMotorIn1, HIGH);
+      digitalWrite(LeftMotorIn2, LOW);  
+      digitalWrite(RightMotorIn1, LOW);
+      digitalWrite(RightMotorIn2, HIGH);
+      analogWrite(LeftMotorEnable, x_speed);
+      analogWrite(RightMotorEnable, x_speed);
+    }
+    else
+    {
+      // Backward
+      int x_speed = max((-desired_x_vel / max_base_speed), 1.0) * 255;
+      digitalWrite(LeftMotorIn1, LOW);
+      digitalWrite(LeftMotorIn2, HIGH);  
+      digitalWrite(RightMotorIn1, HIGH);
+      digitalWrite(RightMotorIn2, LOW);
+      analogWrite(LeftMotorEnable, x_speed);
+      analogWrite(RightMotorEnable, x_speed);
+    }
 
-  if(desired_y_vel == 0.0)
-  {
-    digitalWrite(FrontMotorEnable, LOW);
-    digitalWrite(BackMotorEnable, LOW);
-    digitalWrite(FrontMotorIn1, LOW);
-    digitalWrite(FrontMotorIn2, LOW);  
-    digitalWrite(BackMotorIn1, LOW);
-    digitalWrite(BackMotorIn2, LOW);
-  }
-  else if(desired_y_vel < 0.0)
-  {
-    // Right
-    int y_speed = max((desired_y_vel / max_base_speed), 1.0) * 255;
-    digitalWrite(FrontMotorIn1, HIGH);
-    digitalWrite(FrontMotorIn2, LOW);  
-    digitalWrite(BackMotorIn1, LOW);
-    digitalWrite(BackMotorIn2, HIGH);
-    analogWrite(FrontMotorEnable, y_speed);
-    analogWrite(BackMotorEnable, y_speed);
-  }
-  else
-  {
-    // Left
-    int y_speed = max((-desired_y_vel / max_base_speed), 1.0) * 255;
-    digitalWrite(FrontMotorIn1, LOW);
-    digitalWrite(FrontMotorIn2, HIGH);  
-    digitalWrite(BackMotorIn1, HIGH);
-    digitalWrite(BackMotorIn2, LOW);
-    analogWrite(FrontMotorEnable, y_speed);
-    analogWrite(BackMotorEnable, y_speed);
+    if(desired_y_vel == 0.0)
+    {
+      digitalWrite(FrontMotorEnable, LOW);
+      digitalWrite(BackMotorEnable, LOW);
+      digitalWrite(FrontMotorIn1, LOW);
+      digitalWrite(FrontMotorIn2, LOW);  
+      digitalWrite(BackMotorIn1, LOW);
+      digitalWrite(BackMotorIn2, LOW);
+    }
+    else if(desired_y_vel < 0.0)
+    {
+      // Right
+      int y_speed = max((desired_y_vel / max_base_speed), 1.0) * 255;
+      digitalWrite(FrontMotorIn1, HIGH);
+      digitalWrite(FrontMotorIn2, LOW);  
+      digitalWrite(BackMotorIn1, LOW);
+      digitalWrite(BackMotorIn2, HIGH);
+      analogWrite(FrontMotorEnable, y_speed);
+      analogWrite(BackMotorEnable, y_speed);
+    }
+    else
+    {
+      // Left
+      int y_speed = max((-desired_y_vel / max_base_speed), 1.0) * 255;
+      digitalWrite(FrontMotorIn1, LOW);
+      digitalWrite(FrontMotorIn2, HIGH);  
+      digitalWrite(BackMotorIn1, HIGH);
+      digitalWrite(BackMotorIn2, LOW);
+      analogWrite(FrontMotorEnable, y_speed);
+      analogWrite(BackMotorEnable, y_speed);
+    }
   }
 }
 
@@ -657,11 +660,18 @@ void home()
 
 void homeXGantry()
 {
-  digitalWrite(XGantryStepperDirection, LOW);
-  digitalWrite(XGantryStepperPulse, HIGH);
-  digitalWrite(XGantryStepperPulse, LOW);
-  x_gantry_step_count--;
+  int num_steps = 0;
 
+  while(num_steps < 10 && digitalRead(XAxisLimitSwitch) != 0)
+  {
+    digitalWrite(XGantryStepperDirection, LOW);
+    digitalWrite(XGantryStepperPulse, HIGH);
+    digitalWrite(XGantryStepperPulse, LOW);
+    x_gantry_step_count--;
+
+    delayMicroseconds(1000);
+  }
+  
   // Check to see if the X Axis Limit Switch was hit
   if(digitalRead(XAxisLimitSwitch) == 0)
   {         
@@ -702,10 +712,17 @@ void XGantryCalibrationSequence()
 
 void homeZGantry()
 {
-  digitalWrite(ZGantryStepperDirection, HIGH);
-  digitalWrite(ZGantryStepperPulse, HIGH);
-  digitalWrite(ZGantryStepperPulse, LOW);
-  z_gantry_step_count--;
+  int num_steps = 0;
+
+  while(num_steps < 10 && digitalRead(ZAxisLimitSwitch) != 0)
+  {
+    digitalWrite(ZGantryStepperDirection, LOW);
+    digitalWrite(ZGantryStepperPulse, HIGH);
+    digitalWrite(ZGantryStepperPulse, LOW);
+    z_gantry_step_count--;
+
+    delayMicroseconds(1000);
+  }
 
   // Check to see if the Z Axis Limit Switch was hit
   if(digitalRead(ZAxisLimitSwitch) == 0)
