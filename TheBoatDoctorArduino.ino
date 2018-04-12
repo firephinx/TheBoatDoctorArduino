@@ -150,8 +150,8 @@ const int min_turntable_steps = -turntable_steps_per_revolution / 4;
 const int max_turntable_steps = turntable_steps_per_revolution / 4; 
 
 // X Gantry Globals
-float current_x_gantry_position;
-int x_gantry_step_count;
+float current_x_gantry_position = 0.0;
+int x_gantry_step_count = 0;
 const int x_gantry_step_interval = 10;
 const int x_gantry_steps_per_revolution = 1600;
 const float x_gantry_distance_per_revolution = 0.005; // 5 mm pitch
@@ -162,7 +162,7 @@ const float x_gantry_threshold = x_gantry_distance_per_revolution / x_gantry_ste
 // Z Gantry Globals
 float current_z_gantry_position;
 int z_gantry_step_count;
-const int z_gantry_step_interval = 10;
+const int z_gantry_step_interval = 300;
 const int z_gantry_steps_per_revolution = 1600;
 const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch GUESS
 const float z_gantry_length = 0.4; // 450mm or ~18" length but safety of 400mm
@@ -982,7 +982,7 @@ void moveXGantry()
     // Move X Gantry Forward
     digitalWrite(XGantryStepperDirection, HIGH);
 
-    for (int i = 0; i < min(x_gantry_step_interval, num_x_gantry_steps); i++)
+    for (int i = 0; i < num_x_gantry_steps; i++)
     {         
       if(x_gantry_step_count >= max_x_gantry_steps)
       {
@@ -1002,7 +1002,7 @@ void moveXGantry()
     // Move X Gantry Back
     digitalWrite(XGantryStepperDirection, LOW);
 
-    for (int i = 0; i < min(x_gantry_step_interval, -num_x_gantry_steps); i++)
+    for (int i = 0; i < -num_x_gantry_steps; i++)
     {         
       if(x_gantry_step_count == 0)
       {
@@ -1046,7 +1046,7 @@ void moveZGantry()
       digitalWrite(ZGantryStepperPulse, LOW);
       z_gantry_step_count++;
 
-      delayMicroseconds(300);
+      delayMicroseconds(500);
     }
   }
   else
@@ -1066,7 +1066,7 @@ void moveZGantry()
       digitalWrite(ZGantryStepperPulse, LOW);
       z_gantry_step_count--;
 
-      delayMicroseconds(300);
+      delayMicroseconds(500);
     }
   }
   current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
@@ -1084,7 +1084,7 @@ void turnTurntable()
   if(num_turntable_steps > 0)
   {
     // Turn Clockwise
-    digitalWrite(TurntableStepperDirection, LOW);
+    digitalWrite(TurntableStepperDirection, HIGH);
     digitalWrite(TurntableStepperPulse, HIGH);
     digitalWrite(TurntableStepperPulse, LOW);
     current_turntable_step_count++;
@@ -1099,7 +1099,7 @@ void turnTurntable()
   else
   {
     // Turn Counter Clockwise
-    digitalWrite(TurntableStepperDirection, HIGH);
+    digitalWrite(TurntableStepperDirection, LOW);
     digitalWrite(TurntableStepperPulse, HIGH);
     digitalWrite(TurntableStepperPulse, LOW);
     current_turntable_step_count--;
