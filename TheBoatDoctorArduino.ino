@@ -156,7 +156,7 @@ const int x_gantry_step_interval = 10;
 const int x_gantry_steps_per_revolution = 1600;
 const float x_gantry_distance_per_revolution = 0.005; // 5 mm pitch
 const float x_gantry_length = 0.25; // 300 mm length, but safety of 250mm
-const int max_x_gantry_steps = (x_gantry_length / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
+const int max_x_gantry_steps = (int)(x_gantry_length / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
 const float x_gantry_threshold = x_gantry_distance_per_revolution / x_gantry_steps_per_revolution;
 
 // Z Gantry Globals
@@ -166,7 +166,7 @@ const int z_gantry_step_interval = 10;
 const int z_gantry_steps_per_revolution = 1600;
 const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch GUESS
 const float z_gantry_length = 0.4; // 450mm or ~18" length but safety of 400mm
-const int max_z_gantry_steps = (z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
+const int max_z_gantry_steps = (int)(z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 const float z_gantry_threshold = z_gantry_distance_per_revolution / z_gantry_steps_per_revolution;
 
 // ROS Callback Functions and Subscribers
@@ -327,7 +327,7 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
     else if  (desired_x_vel < 0.0)
     {
       // Forward
-      int x_speed = max((desired_x_vel / max_base_speed), 1.0) * 255;
+      int x_speed = (int)(max((desired_x_vel / max_base_speed), 1.0) * 255.0);
       digitalWrite(LeftMotorIn1, HIGH);
       digitalWrite(LeftMotorIn2, LOW);  
       digitalWrite(RightMotorIn1, LOW);
@@ -338,7 +338,7 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
     else
     {
       // Backward
-      int x_speed = max((-desired_x_vel / max_base_speed), 1.0) * 255;
+      int x_speed = (int)(max((-desired_x_vel / max_base_speed), 1.0) * 255.0);
       digitalWrite(LeftMotorIn1, LOW);
       digitalWrite(LeftMotorIn2, HIGH);  
       digitalWrite(RightMotorIn1, HIGH);
@@ -359,7 +359,7 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
     else if(desired_y_vel < 0.0)
     {
       // Right
-      int y_speed = max((desired_y_vel / max_base_speed), 1.0) * 255;
+      int y_speed = (int)(max((desired_y_vel / max_base_speed), 1.0) * 255.0);
       digitalWrite(FrontMotorIn1, HIGH);
       digitalWrite(FrontMotorIn2, LOW);  
       digitalWrite(BackMotorIn1, LOW);
@@ -370,7 +370,7 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
     else
     {
       // Left
-      int y_speed = max((-desired_y_vel / max_base_speed), 1.0) * 255;
+      int y_speed = (int)(max((-desired_y_vel / max_base_speed), 1.0) * 255.0);
       digitalWrite(FrontMotorIn1, LOW);
       digitalWrite(FrontMotorIn2, HIGH);  
       digitalWrite(BackMotorIn1, HIGH);
