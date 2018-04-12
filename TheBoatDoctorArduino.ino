@@ -975,7 +975,7 @@ void moveBase()
 
 void moveXGantry()
 {
-  int num_x_gantry_steps = (int)(desired_x_gantry_position - current_x_gantry_position / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
+  int num_x_gantry_steps = (int)((desired_x_gantry_position - current_x_gantry_position) / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
 
   if(num_x_gantry_steps > 0)
   {
@@ -1027,7 +1027,7 @@ void moveXGantry()
 
 void moveZGantry()
 {
-  int num_z_gantry_steps = (int)(desired_z_gantry_position - current_z_gantry_position / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
+  int num_z_gantry_steps = (int)((desired_z_gantry_position - current_z_gantry_position) / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 
   if(num_z_gantry_steps > 0)
   {
