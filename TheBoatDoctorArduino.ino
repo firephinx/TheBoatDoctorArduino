@@ -734,7 +734,7 @@ void homeZGantry()
 
   while(num_steps < z_gantry_step_interval && digitalRead(ZAxisLimitSwitch) != 0)
   {
-    digitalWrite(ZGantryStepperDirection, LOW);
+    digitalWrite(ZGantryStepperDirection, HIGH);
     digitalWrite(ZGantryStepperPulse, HIGH);
     digitalWrite(ZGantryStepperPulse, LOW);
     z_gantry_step_count--;
