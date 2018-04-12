@@ -1080,7 +1080,7 @@ void moveZGantry()
 
 void turnTurntable()
 {
-  int num_turntable_steps = (int)(desired_turntable_theta / (2 * PI)) * turntable_steps_per_revolution;
+  int num_turntable_steps = (int)(((desired_turntable_theta - current_turntable_theta) / (2 * PI)) * turntable_steps_per_revolution);
 
   if(num_turntable_steps > 0)
   {
@@ -1096,6 +1096,21 @@ void turnTurntable()
       turn_turntable_flag = false;
       return;
     }
+
+    /*for (int i = 1; i < num_turntable_steps; i++)
+    {
+      if(current_turntable_step_count >= max_turntable_steps)
+      {
+        current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        return;
+      }
+
+      digitalWrite(TurntableStepperPulse, HIGH);
+      digitalWrite(TurntableStepperPulse, LOW);
+      current_turntable_step_count++;
+
+      delayMicroseconds(10000);
+    }*/
   }
   else
   {
@@ -1111,6 +1126,21 @@ void turnTurntable()
       turn_turntable_flag = false;
       return;
     }
+
+    /*for (int i = 1; i < num_turntable_steps; i++)
+    {
+      if(current_turntable_step_count <= min_turntable_steps)
+      {
+        current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        return;
+      }
+
+      digitalWrite(TurntableStepperPulse, HIGH);
+      digitalWrite(TurntableStepperPulse, LOW);
+      current_turntable_step_count--;
+
+      delayMicroseconds(10000);
+    }*/
   }
 }
 
@@ -1277,129 +1307,4 @@ void turnTurntable()
       delay(20);
     }
   }
-}
-
-void moveGantry(float x_gantry_dist, float z_gantry_dist)
-{
-  
-  int num_z_gantry_steps = (z_gantry_dist / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
-
-  if(num_x_gantry_steps > 0)
-  {
-    // Move X Gantry Forward
-    digitalWrite(XGantryStepperDirection, HIGH);
-    for (int i = 0; i < num_x_gantry_steps; i++)
-    {         
-      if(x_gantry_step_count >= max_x_gantry_steps)
-      {
-        current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
-        return;
-      }
-      digitalWrite(XGantryStepperPulse, HIGH);
-      digitalWrite(XGantryStepperPulse, LOW);
-      x_gantry_step_count++;
-
-      delayMicroseconds(300);
-    }
-  }
-  else
-  {
-    // Move X Gantry Back
-    digitalWrite(XGantryStepperDirection, LOW);
-    for (int i = 0; i < -num_x_gantry_steps; i++)
-    {         
-      if(x_gantry_step_count == 0)
-      {
-        current_x_gantry_position = 0.0;
-        return;
-      }
-      digitalWrite(XGantryStepperPulse, HIGH);
-      digitalWrite(XGantryStepperPulse, LOW);
-      x_gantry_step_count--;
-
-      delayMicroseconds(300);
-    }
-  }
-  current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
-
-  if(num_z_gantry_steps > 0)
-  {
-    // Move Z Gantry Up
-    digitalWrite(ZGantryStepperDirection, LOW);
-    for (int i = 0; i < num_z_gantry_steps; i++)
-    {         
-      if(z_gantry_step_count >= max_z_gantry_steps)
-      {
-        current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
-        return;
-      }
-      digitalWrite(ZGantryStepperPulse, HIGH);
-      digitalWrite(ZGantryStepperPulse, LOW);
-      z_gantry_step_count++;
-
-      delayMicroseconds(300);
-    }
-  }
-  else
-  {
-    // Move Z Gantry Down
-    digitalWrite(ZGantryStepperDirection, HIGH);
-    for (int i = 0; i < -num_z_gantry_steps; i++)
-    {         
-      if(z_gantry_step_count == 0)
-      {
-        current_z_gantry_position = 0.0;
-        return;
-      }
-      digitalWrite(ZGantryStepperPulse, HIGH);
-      digitalWrite(ZGantryStepperPulse, LOW);
-      z_gantry_step_count--;
-
-      delayMicroseconds(300);
-    }
-  }
-  current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
-}
-
-void turnTurntable(float theta)
-{
-  if(theta > 0)
-  {
-    int num_turntable_steps = (theta / (2 * PI)) * turntable_steps_per_revolution;
-    digitalWrite(TurntableStepperDirection, LOW);
-    for (int i = 1; i < num_turntable_steps; i++)
-    {
-      if(current_turntable_step_count >= max_turntable_steps)
-      {
-        current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
-        return;
-      }
-
-      digitalWrite(TurntableStepperPulse, HIGH);
-      digitalWrite(TurntableStepperPulse, LOW);
-      current_turntable_step_count++;
-
-      delayMicroseconds(10000);
-    }
-  }
-  else
-  {
-    int num_turntable_steps = (-theta / (2 * PI)) * turntable_steps_per_revolution;
-    digitalWrite(TurntableStepperDirection, HIGH);
-    for (int i = 1; i < num_turntable_steps; i++)
-    {
-      if(current_turntable_step_count <= min_turntable_steps)
-      {
-        current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
-        return;
-      }
-
-      digitalWrite(TurntableStepperPulse, HIGH);
-      digitalWrite(TurntableStepperPulse, LOW);
-      current_turntable_step_count--;
-
-      delayMicroseconds(10000);
-    }
-  }
-  current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
 }*/
