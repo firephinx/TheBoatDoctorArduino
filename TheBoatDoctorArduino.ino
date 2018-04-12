@@ -144,29 +144,30 @@ const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor
 
 // Turntable Globals
 float current_turntable_theta = 0.0;
-int current_turntable_step_count = 0;
+long current_turntable_step_count = 0;
 const int turntable_steps_per_revolution = 6400;
 const int min_turntable_steps = -turntable_steps_per_revolution / 4; 
 const int max_turntable_steps = turntable_steps_per_revolution / 4; 
+const float turntable_threshold = 2 * PI / turntable_steps_per_revolution;
 
 // X Gantry Globals
 float current_x_gantry_position = 0.0;
-int x_gantry_step_count = 0;
+long x_gantry_step_count = 0;
 const int x_gantry_step_interval = 10;
 const int x_gantry_steps_per_revolution = 1600;
 const float x_gantry_distance_per_revolution = 0.005; // 5 mm pitch
 const float x_gantry_length = 0.25; // 300 mm length, but safety of 250mm
-const int max_x_gantry_steps = (int)(x_gantry_length / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
+const long max_x_gantry_steps = (long)(x_gantry_length / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
 const float x_gantry_threshold = x_gantry_distance_per_revolution / x_gantry_steps_per_revolution;
 
 // Z Gantry Globals
 float current_z_gantry_position;
-int z_gantry_step_count;
+long z_gantry_step_count;
 const int z_gantry_step_interval = 300;
 const int z_gantry_steps_per_revolution = 1600;
 const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch GUESS
 const float z_gantry_length = 0.4; // 450mm or ~18" length but safety of 400mm
-const int max_z_gantry_steps = (int)(z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
+const long max_z_gantry_steps = (long)(z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 const float z_gantry_threshold = z_gantry_distance_per_revolution / z_gantry_steps_per_revolution;
 
 // ROS Callback Functions and Subscribers
@@ -400,15 +401,15 @@ void cmdJointPosCallback(const geometry_msgs::Point& cmd_joint_pos_msg)
   desired_x_gantry_position = cmd_joint_pos_msg.x;
   desired_z_gantry_position = cmd_joint_pos_msg.z;
   
-  if(desired_x_gantry_position != current_x_gantry_position)
+  if(abs(desired_x_gantry_position - current_x_gantry_position) > x_gantry_threshold)
   {
     move_x_gantry_flag = true;
   } 
-  if(desired_z_gantry_position != current_z_gantry_position)
+  if(abs(desired_z_gantry_position - current_z_gantry_position) > z_gantry_threshold)
   {
     move_z_gantry_flag = true;
   }
-  if(desired_turntable_theta != current_turntable_theta)
+  if(abs(desired_turntable_theta - current_turntable_theta) > turntable_threshold)
   {
     turn_turntable_flag = true;
   }
@@ -975,14 +976,14 @@ void moveBase()
 
 void moveXGantry()
 {
-  int num_x_gantry_steps = (int)((desired_x_gantry_position - current_x_gantry_position) / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
+  long num_x_gantry_steps = (long)((desired_x_gantry_position - current_x_gantry_position) / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
 
   if(num_x_gantry_steps > 0)
   {
     // Move X Gantry Forward
     digitalWrite(XGantryStepperDirection, HIGH);
 
-    for (int i = 0; i < num_x_gantry_steps; i++)
+    for (long i = 0; i < num_x_gantry_steps; i++)
     {         
       if(x_gantry_step_count >= max_x_gantry_steps)
       {
@@ -1002,7 +1003,7 @@ void moveXGantry()
     // Move X Gantry Back
     digitalWrite(XGantryStepperDirection, LOW);
 
-    for (int i = 0; i < -num_x_gantry_steps; i++)
+    for (long i = 0; i < -num_x_gantry_steps; i++)
     {         
       if(x_gantry_step_count == 0)
       {
@@ -1027,14 +1028,14 @@ void moveXGantry()
 
 void moveZGantry()
 {
-  int num_z_gantry_steps = (int)((desired_z_gantry_position - current_z_gantry_position) / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
+  long num_z_gantry_steps = (long)((desired_z_gantry_position - current_z_gantry_position) / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 
   if(num_z_gantry_steps > 0)
   {
     // Move Z Gantry Up
     digitalWrite(ZGantryStepperDirection, LOW);
 
-    for (int i = 0; i < min(z_gantry_step_interval, num_z_gantry_steps); i++)
+    for (long i = 0; i < min(z_gantry_step_interval, num_z_gantry_steps); i++)
     {         
       if(z_gantry_step_count >= max_z_gantry_steps)
       {
@@ -1054,7 +1055,7 @@ void moveZGantry()
     // Move Z Gantry Down
     digitalWrite(ZGantryStepperDirection, HIGH);
 
-    for (int i = 0; i < min(z_gantry_step_interval, -num_z_gantry_steps); i++)
+    for (long i = 0; i < min(z_gantry_step_interval, -num_z_gantry_steps); i++)
     {         
       if(z_gantry_step_count == 0)
       {
