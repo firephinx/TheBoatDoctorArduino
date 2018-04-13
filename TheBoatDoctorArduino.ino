@@ -143,10 +143,15 @@ const float distance_between_wheels = 0.33333; // There is around 0.333m (13.1")
 const float distance_traveled_per_wheel_revolution = wheel_diameter * PI; // m
 const float max_base_speed = distance_traveled_per_wheel_revolution * motor_rpm / 60.0; // m/s
 const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor encoder, but only using an interrupt for channel A
-const float x_position_threshold = 0.01;
-const float y_position_threshold = 0.01;
-const int min_base_motor_speed = 10;
+const float x_position_threshold = 0.003;
+const float y_position_threshold = 0.003;
+const float avg_x_position_threshold = 0.007;
+const float avg_y_position_threshold = 0.007;
+const int min_base_motor_speed = 100;
 const int max_base_motor_speed = 255;
+float current_avg_x_position;
+float current_avg_y_position;
+const float avg_filter_size = 10;
 
 // Turntable Globals
 float current_turntable_theta = 0.0;
@@ -668,6 +673,12 @@ void setup()
   joint_states_msg.position_length = 3;
   joint_states_msg.effort_length = 3;
   joint_states_msg.name = joint_names;
+  
+  readUltrasonicSensors();
+  desired_x_position = current_x_position;
+  desired_y_position = current_y_position;
+  current_avg_x_position = current_x_position;
+  current_avg_y_position = current_y_position;
 }
 
 bool determineHoming()
@@ -893,7 +904,7 @@ void readUltrasonicSensors(){
   
   // Find the distance in cm based on the duration
   // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
-  front_ultrasonic_range_distance = (front_ultrasonic_range_duration / 2) / 29.1;
+  front_ultrasonic_range_distance = (front_ultrasonic_range_duration / 29) / 2;
 
   // Set the trigger to Low for a little while initially
   digitalWrite(RightUltrasonicTrigger, LOW);
@@ -909,7 +920,7 @@ void readUltrasonicSensors(){
   
   // Find the distance in cm based on the duration
   // Values taken from the datasheet at https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
-  right_ultrasonic_range_distance = (right_ultrasonic_range_duration / 2) / 29.1;
+  right_ultrasonic_range_distance = (right_ultrasonic_range_duration / 29) / 2;
 }
 
 // Publish the current ultrasonic info from the front and right ultrasonic sensors to ROS
@@ -922,7 +933,9 @@ void publishUltrasonicInfo()
   current_x_position = (front_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
   current_y_position = (right_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
   ultrasonic_pose_msg.x = current_x_position;
+  current_avg_x_position = (((current_avg_x_position * (avg_filter_size - 1)) + current_x_position) / avg_filter_size);
   ultrasonic_pose_msg.y = current_y_position;
+  current_avg_y_position = (((current_avg_y_position * (avg_filter_size - 1)) + current_y_position) / avg_filter_size);
   front_ultrasonic_range_pub.publish(&front_ultrasonic_range_msg);
   right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
   ultrasonic_pose_pub.publish(&ultrasonic_pose_msg);
@@ -971,6 +984,10 @@ void loop()
       {
         moveBaseY();
       }
+      else
+      {
+        //checkBasePosition();
+      }
     }
   }
   
@@ -989,12 +1006,28 @@ void loop()
   delay(10);
 }
 
+void checkBasePosition()
+{
+  if(abs(desired_x_position - current_avg_x_position) > avg_x_position_threshold)
+  {
+    move_base_x_flag = true;
+  } 
+  if(abs(desired_y_position - current_avg_y_position) > avg_y_position_threshold)
+  {
+    move_base_y_flag = true;
+  } 
+}
+
 void moveBaseX()
 {
   float error_x_position = desired_x_position - current_x_position;
   
   if(abs(error_x_position) < x_position_threshold)
   {
+    digitalWrite(LeftMotorIn1, LOW);
+    digitalWrite(LeftMotorIn2, LOW);  
+    digitalWrite(RightMotorIn1, LOW);
+    digitalWrite(RightMotorIn2, LOW); 
     move_base_x_flag = false;
   }
   else
@@ -1036,6 +1069,10 @@ void moveBaseY()
 
   if(abs(error_y_position) < y_position_threshold)
   {
+    digitalWrite(FrontMotorIn1, LOW);
+    digitalWrite(FrontMotorIn2, LOW);  
+    digitalWrite(BackMotorIn1, LOW);
+    digitalWrite(BackMotorIn2, LOW);
     move_base_y_flag = false;
   }
   else
