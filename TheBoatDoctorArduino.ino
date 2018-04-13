@@ -82,6 +82,8 @@ char odom[] = "/odom";
 tf::TransformBroadcaster broadcaster;
 
 // Ultrasonic Sensor Publisher Globals
+float current_x_position;
+float current_y_position;
 sensor_msgs::Range front_ultrasonic_range_msg;
 sensor_msgs::Range right_ultrasonic_range_msg;
 geometry_msgs::Pose2D ultrasonic_pose_msg;
@@ -141,6 +143,10 @@ const float distance_between_wheels = 0.33333; // There is around 0.333m (13.1")
 const float distance_traveled_per_wheel_revolution = wheel_diameter * PI; // m
 const float max_base_speed = distance_traveled_per_wheel_revolution * motor_rpm / 60.0; // m/s
 const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor encoder, but only using an interrupt for channel A
+const float x_position_threshold = 0.01;
+const float y_position_threshold = 0.01;
+const int min_base_motor_speed = 10;
+const int max_base_motor_speed = 255;
 
 // Turntable Globals
 float current_turntable_theta = 0.0;
@@ -287,20 +293,28 @@ ros::Subscriber<std_msgs::Empty> home_sub("/TheBoatDoctor/Home", &homeCallback )
 
 // COMMAND POSITION
 // Command Position Globals
-bool move_base_flag = false;
+bool move_base_x_flag = false;
+bool move_base_y_flag = false;
+float desired_x_position;
+float desired_y_position;
+float desired_theta;
 
 // Command Position Callback
 // Moves the robot to a specified location in the testbed using the ultrasonic sensors and motor encoders
 void cmdPosCallback(const geometry_msgs::Pose2D& pose_2d_msg)
 {
-  float current_x = front_ultrasonic_range_distance;
-  float current_y = right_ultrasonic_range_distance;
+  desired_x_position = pose_2d_msg.x;
+  desired_y_position = pose_2d_msg.y;
+  desired_theta = pose_2d_msg.theta;
 
-  float desired_x = pose_2d_msg.x;
-  float desired_y = pose_2d_msg.y;
-  float desired_theta = pose_2d_msg.theta;
-
-  //moveBase(desired_x, desired_y, desired_x - current_x, desired_y - current_y);
+  if(abs(desired_x_position - current_x_position) > x_position_threshold)
+  {
+    move_base_x_flag = true;
+  } 
+  if(abs(desired_y_position - current_y_position) > y_position_threshold)
+  {
+    move_base_y_flag = true;
+  } 
 }
 
 // Command Position Subscriber
@@ -905,8 +919,10 @@ void publishUltrasonicInfo()
   front_ultrasonic_range_msg.header.stamp = nh.now();
   right_ultrasonic_range_msg.range = right_ultrasonic_range_distance / 100;
   right_ultrasonic_range_msg.header.stamp = nh.now();
-  ultrasonic_pose_msg.x = (front_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
-  ultrasonic_pose_msg.y = (right_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
+  current_x_position = (front_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
+  current_y_position = (right_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
+  ultrasonic_pose_msg.x = current_x_position;
+  ultrasonic_pose_msg.y = current_y_position;
   front_ultrasonic_range_pub.publish(&front_ultrasonic_range_msg);
   right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
   ultrasonic_pose_pub.publish(&ultrasonic_pose_msg);
@@ -947,9 +963,13 @@ void loop()
       {
         turnTurntable();
       }
-      else if(move_base_flag)
+      else if(move_base_x_flag)
       {
-        moveBase();
+        moveBaseX();
+      }
+      else if(move_base_y_flag)
+      {
+        moveBaseY();
       }
     }
   }
@@ -969,9 +989,86 @@ void loop()
   delay(10);
 }
 
-void moveBase()
+void moveBaseX()
 {
+  float error_x_position = desired_x_position - current_x_position;
+  
+  if(abs(error_x_position) < x_position_threshold)
+  {
+    move_base_x_flag = false;
+  }
+  else
+  {
+    long current_left_motor_encoder_count = left_motor_encoder_count;
+    long current_right_motor_encoder_count = right_motor_encoder_count;
 
+    long num_x_encoder_counts = (long)((error_x_position / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
+    
+    long target_left_motor_encoder_count = left_motor_encoder_count - num_x_encoder_counts;
+    long target_right_motor_encoder_count = right_motor_encoder_count + num_x_encoder_counts;
+
+    if (num_x_encoder_counts < 0)
+    {
+      // Going Forward
+      digitalWrite(LeftMotorIn1, HIGH);
+      digitalWrite(LeftMotorIn2, LOW);  
+      digitalWrite(RightMotorIn1, LOW);
+      digitalWrite(RightMotorIn2, HIGH);
+      analogWrite(LeftMotorEnable, min_base_motor_speed);
+      analogWrite(RightMotorEnable, min_base_motor_speed);
+    }
+    else
+    {
+      // Going Backward
+      digitalWrite(LeftMotorIn1, LOW);
+      digitalWrite(LeftMotorIn2, HIGH);  
+      digitalWrite(RightMotorIn1, HIGH);
+      digitalWrite(RightMotorIn2, LOW); 
+      analogWrite(LeftMotorEnable, min_base_motor_speed);
+      analogWrite(RightMotorEnable, min_base_motor_speed);
+    }
+  }
+}
+
+void moveBaseY()
+{
+  float error_y_position = desired_y_position - current_y_position;
+
+  if(abs(error_y_position) < y_position_threshold)
+  {
+    move_base_y_flag = false;
+  }
+  else
+  {
+    long current_front_motor_encoder_count = front_motor_encoder_count;
+    long current_back_motor_encoder_count = back_motor_encoder_count;
+
+    long num_y_encoder_counts = (long)((error_y_position / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
+
+    long target_front_motor_encoder_count = front_motor_encoder_count - num_y_encoder_counts;
+    long target_back_motor_encoder_count = back_motor_encoder_count + num_y_encoder_counts;
+
+    if(num_y_encoder_counts < 0)
+    {
+      // Going Right
+      digitalWrite(FrontMotorIn1, HIGH);
+      digitalWrite(FrontMotorIn2, LOW);  
+      digitalWrite(BackMotorIn1, LOW);
+      digitalWrite(BackMotorIn2, HIGH);
+      analogWrite(FrontMotorEnable, min_base_motor_speed);
+      analogWrite(BackMotorEnable, min_base_motor_speed);
+    }
+    else
+    {
+      // Going Left
+      digitalWrite(FrontMotorIn1, LOW);
+      digitalWrite(FrontMotorIn2, HIGH);  
+      digitalWrite(BackMotorIn1, HIGH);
+      digitalWrite(BackMotorIn2, LOW);
+      analogWrite(FrontMotorEnable, min_base_motor_speed);
+      analogWrite(BackMotorEnable, min_base_motor_speed);
+    }
+  }
 }
 
 void moveXGantry()
@@ -1086,16 +1183,6 @@ void turnTurntable()
   {
     // Turn Clockwise
     digitalWrite(TurntableStepperDirection, HIGH);
-//    digitalWrite(TurntableStepperPulse, HIGH);
-//    digitalWrite(TurntableStepperPulse, LOW);
-//    current_turntable_step_count++;
-//    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
-//
-//    if(current_turntable_step_count >= max_turntable_steps)
-//    {
-//      turn_turntable_flag = false;
-//      return;
-//    }
 
     for (int i = 1; i < num_turntable_steps; i++)
     {
@@ -1119,16 +1206,6 @@ void turnTurntable()
   {
     // Turn Counter Clockwise
     digitalWrite(TurntableStepperDirection, LOW);
-//    digitalWrite(TurntableStepperPulse, HIGH);
-//    digitalWrite(TurntableStepperPulse, LOW);
-//    current_turntable_step_count--;
-//    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
-//
-//    if(current_turntable_step_count <= min_turntable_steps)
-//    {
-//      turn_turntable_flag = false;
-//      return;
-//    }
 
     for (int i = 1; i < -num_turntable_steps; i++)
     {
@@ -1149,168 +1226,3 @@ void turnTurntable()
     turn_turntable_flag = false;
   }
 }
-
-
-// TODO: FIX THESE
-
-/*void moveBase(float desired_x, float desired_y, float x_dist, float y_dist)
-{
-  int current_front_motor_encoder_count = front_motor_encoder_count;
-  int current_left_motor_encoder_count = left_motor_encoder_count;
-  int current_back_motor_encoder_count = back_motor_encoder_count;
-  int current_right_motor_encoder_count = right_motor_encoder_count;
-
-  int num_x_encoder_counts = (x_dist / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution;
-  int num_y_encoder_counts = (y_dist / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution;
-
-  int target_front_motor_encoder_count = front_motor_encoder_count - num_y_encoder_counts;
-  int target_left_motor_encoder_count = left_motor_encoder_count - num_x_encoder_counts;
-  int target_back_motor_encoder_count = back_motor_encoder_count + num_y_encoder_counts;
-  int target_right_motor_encoder_count = right_motor_encoder_count + num_x_encoder_counts;
-
-  if (num_x_encoder_counts > 0)
-  {
-    // Going Backward
-    digitalWrite(LeftMotorIn1, LOW);
-    digitalWrite(LeftMotorIn2, HIGH);  
-    digitalWrite(RightMotorIn1, HIGH);
-    digitalWrite(RightMotorIn2, LOW);
-
-    int motor_speed = 0;
-    while(left_motor_encoder_count > target_left_motor_encoder_count && 
-          right_motor_encoder_count < target_right_motor_encoder_count &&
-          front_ultrasonic_range_distance < desired_x && 
-          motor_speed < 255)
-    {
-      analogWrite(LeftMotorEnable, motor_speed);
-      analogWrite(RightMotorEnable, motor_speed);
-      motor_speed++;
-      readUltrasonicSensors();
-      delay(20);
-    }
-    while(left_motor_encoder_count > target_left_motor_encoder_count && 
-          right_motor_encoder_count < target_right_motor_encoder_count &&
-          front_ultrasonic_range_distance < desired_x)
-    {
-      readUltrasonicSensors();
-      delay(20);
-    }
-    while(motor_speed > 0)
-    {
-      analogWrite(LeftMotorEnable, motor_speed);
-      analogWrite(RightMotorEnable, motor_speed);
-      motor_speed--;
-      readUltrasonicSensors();
-      delay(20);
-    } 
-  }
-  else
-  {
-    // Going Forward
-    digitalWrite(LeftMotorIn1, HIGH);
-    digitalWrite(LeftMotorIn2, LOW);  
-    digitalWrite(RightMotorIn1, LOW);
-    digitalWrite(RightMotorIn2, HIGH);  
-
-    int motor_speed = 0;
-    while(left_motor_encoder_count < target_left_motor_encoder_count && 
-          right_motor_encoder_count > target_right_motor_encoder_count &&
-          front_ultrasonic_range_distance > desired_x && 
-          motor_speed < 255)
-    {
-      analogWrite(LeftMotorEnable, motor_speed);
-      analogWrite(RightMotorEnable, motor_speed);
-      motor_speed++;
-      readUltrasonicSensors();
-      delay(20);
-    }
-    while(left_motor_encoder_count < target_left_motor_encoder_count && 
-          right_motor_encoder_count > target_right_motor_encoder_count &&
-          front_ultrasonic_range_distance > desired_x)
-    {
-      readUltrasonicSensors();
-      delay(20);
-    }
-    while(motor_speed > 0)
-    {
-      analogWrite(LeftMotorEnable, motor_speed);
-      analogWrite(RightMotorEnable, motor_speed);
-      motor_speed--;
-      readUltrasonicSensors();
-      delay(20);
-    }
-  }
-  
-  if(num_y_encoder_counts > 0)
-  {
-    // Going Left
-    digitalWrite(FrontMotorIn1, HIGH);
-    digitalWrite(FrontMotorIn2, LOW);  
-    digitalWrite(BackMotorIn1, LOW);
-    digitalWrite(BackMotorIn2, HIGH);
-
-    int motor_speed = 0;
-    while(front_motor_encoder_count > target_front_motor_encoder_count && 
-          back_motor_encoder_count < target_back_motor_encoder_count &&
-          right_ultrasonic_range_distance < desired_y && 
-          motor_speed < 255)
-    {
-      analogWrite(FrontMotorEnable, motor_speed);
-      analogWrite(BackMotorEnable, motor_speed);
-      motor_speed++;
-      readUltrasonicSensors();
-      delay(20);
-    }
-    while(front_motor_encoder_count > target_front_motor_encoder_count && 
-          back_motor_encoder_count < target_back_motor_encoder_count && 
-          right_ultrasonic_range_distance < desired_y)
-    {
-      readUltrasonicSensors();
-      delay(20);
-    }
-    while(motor_speed > 0)
-    {
-      analogWrite(FrontMotorEnable, motor_speed);
-      analogWrite(BackMotorEnable, motor_speed);
-      motor_speed--;
-      readUltrasonicSensors();
-      delay(20);
-    }
-  }
-  else
-  {
-    // Going Right
-    digitalWrite(FrontMotorIn1, LOW);
-    digitalWrite(FrontMotorIn2, HIGH);  
-    digitalWrite(BackMotorIn1, HIGH);
-    digitalWrite(BackMotorIn2, LOW);
-
-    int motor_speed = 0;
-    while(front_motor_encoder_count < target_front_motor_encoder_count && 
-          back_motor_encoder_count > target_back_motor_encoder_count &&
-          right_ultrasonic_range_distance > desired_y &&
-          motor_speed < 255)
-    {
-      analogWrite(FrontMotorEnable, motor_speed);
-      analogWrite(BackMotorEnable, motor_speed);
-      motor_speed++;
-      readUltrasonicSensors();
-      delay(20);
-    }
-    while(front_motor_encoder_count < target_front_motor_encoder_count && 
-          back_motor_encoder_count > target_back_motor_encoder_count &&
-          right_ultrasonic_range_distance > desired_y)
-    {
-      readUltrasonicSensors();
-      delay(20);
-    }
-    while(motor_speed > 0)
-    {
-      analogWrite(FrontMotorEnable, motor_speed);
-      analogWrite(BackMotorEnable, motor_speed);
-      motor_speed--;
-      readUltrasonicSensors();
-      delay(20);
-    }
-  }
-}*/
