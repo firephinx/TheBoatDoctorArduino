@@ -337,7 +337,7 @@ void moveRobotBaseCallback(const geometry_msgs::Pose2D& pose_2d_msg)
   if(!move_base_x_flag && !move_base_y_flag)
   {
     done_moving_robot_base_msg.data = true;
-    done_moving_robot_base_pub.publish(done_moving_robot_base_msg);
+    done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
   }
 }
 
@@ -452,7 +452,7 @@ void moveGantryCallback(const geometry_msgs::Pose2D& move_gantry_msg)
   if(!move_x_gantry_flag && !move_z_gantry_flag)
   {
     done_moving_gantry_msg.data = true;
-    done_moving_gantry_pub.publish(done_moving_gantry_msg);
+    done_moving_gantry_pub.publish(&done_moving_gantry_msg);
   }
 }
 
@@ -481,7 +481,7 @@ void turnTurntableCallback(const geometry_msgs::Pose2D& turn_turntable_msg)
   else
   {
     done_turning_turntable_msg.data = true;
-    done_turning_turntable_pub.publish(done_turning_turntable_msg);
+    done_turning_turntable_pub.publish(&done_turning_turntable_msg);
   } 
 }
 
@@ -883,7 +883,7 @@ void homeTurntable()
   {
     home_turntable_flag = false;
     done_homing_msg.data = true;
-    done_homing_pub.publish(done_homing_msg);
+    done_homing_pub.publish(&done_homing_msg);
   }
   current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
 }
@@ -1091,7 +1091,7 @@ void moveBaseX()
     if(!move_base_y_flag)
     {
       done_moving_robot_base_msg.data = true;
-      done_moving_robot_base_pub.publish(done_moving_robot_base_msg);
+      done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
   }
   else
@@ -1141,7 +1141,7 @@ void moveBaseY()
     if(!move_base_x_flag)
     {
       done_moving_robot_base_msg.data = true;
-      done_moving_robot_base_pub.publish(done_moving_robot_base_msg);
+      done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
   }
   else
@@ -1193,7 +1193,7 @@ void moveXGantry()
         current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
         move_x_gantry_flag = false;
         done_moving_gantry_msg.data = false;
-        done_moving_gantry_pub.publish(done_moving_gantry_msg);
+        done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
       digitalWrite(XGantryStepperPulse, HIGH);
@@ -1215,7 +1215,7 @@ void moveXGantry()
         current_x_gantry_position = 0.0;
         move_x_gantry_flag = false;
         done_moving_gantry_msg.data = false;
-        done_moving_gantry_pub.publish(done_moving_gantry_msg);
+        done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
       digitalWrite(XGantryStepperPulse, HIGH);
@@ -1233,7 +1233,7 @@ void moveXGantry()
     if(!move_z_gantry_flag)
     {
       done_moving_gantry_msg.data = true;
-      done_moving_gantry_pub.publish(done_moving_gantry_msg);
+      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
     }
   }
 }
@@ -1254,7 +1254,7 @@ void moveZGantry()
         current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
         move_z_gantry_flag = false;
         done_moving_gantry_msg.data = false;
-        done_moving_gantry_pub.publish(done_moving_gantry_msg);
+        done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
       digitalWrite(ZGantryStepperPulse, HIGH);
@@ -1276,7 +1276,7 @@ void moveZGantry()
         current_z_gantry_position = 0.0;
         move_z_gantry_flag = false;
         done_moving_gantry_msg.data = false;
-        done_moving_gantry_pub.publish(done_moving_gantry_msg);
+        done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
       digitalWrite(ZGantryStepperPulse, HIGH);
@@ -1294,7 +1294,7 @@ void moveZGantry()
     if(!move_x_gantry_flag)
     {
       done_moving_gantry_msg.data = true;
-      done_moving_gantry_pub.publish(done_moving_gantry_msg);
+      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
     }
   }
 }
@@ -1315,7 +1315,7 @@ void turnTurntable()
         current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
         turn_turntable_flag = false;
         done_turning_turntable_msg.data = false;
-        done_turning_turntable_pub.publish(done_turning_turntable_msg);
+        done_turning_turntable_pub.publish(&done_turning_turntable_msg);
         return;
       }
 
@@ -1338,7 +1338,7 @@ void turnTurntable()
         current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
         turn_turntable_flag = false;
         done_turning_turntable_msg.data = false;
-        done_turning_turntable_pub.publish(done_turning_turntable_msg);
+        done_turning_turntable_pub.publish(&done_turning_turntable_msg);
         return;
       }
 
@@ -1356,6 +1356,6 @@ void turnTurntable()
   {
     turn_turntable_flag = false;
     done_turning_turntable_msg.data = true;
-    done_turning_turntable_pub.publish(done_turning_turntable_msg);
+    done_turning_turntable_pub.publish(&done_turning_turntable_msg);
   }
 }
