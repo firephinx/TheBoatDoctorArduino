@@ -61,11 +61,10 @@
 #include <ros.h> // ROS Serial
 #include <ros/time.h> // ROS time for publishing messages
 #include <tf/transform_broadcaster.h> // Transform Broadcaster for TF
-#include <std_msgs/Empty.h> // Empty msg for stopping everything
+#include <std_msgs/Empty.h> // Empty msg for Homing everything
 #include <std_msgs/Bool.h> // Bool msg for Pump and LED switches
-#include <geometry_msgs/Pose2D.h> // Pose2D msg for moving the robot base
+#include <geometry_msgs/Pose2D.h> // Pose2D msg for moving the robot base and commands the turntable, X and Z Gantry
 #include <geometry_msgs/Twist.h> // Twist msg for cmd_vel
-#include <geometry_msgs/Point.h> // Point msg to command the turntable, X and Z Gantry
 #include <sensor_msgs/JointState.h> // JointState msg for publishing the robot's current joint values
 #include <sensor_msgs/Range.h> // Sensor_msgs Range message for Ultrasonic Sensors
 #include <sensor_msgs/Imu.h> // Sensor_msgs Imu message for IMU
@@ -156,6 +155,8 @@ const float avg_filter_size = 10;
 // Turntable Globals
 float current_turntable_theta = 0.0;
 long current_turntable_step_count = 0;
+const int turntable_step_interval = 300;
+const int turntable_step_time = 3000;
 const int turntable_steps_per_revolution = 6400;
 const int min_turntable_steps = -turntable_steps_per_revolution / 4; 
 const int max_turntable_steps = turntable_steps_per_revolution / 4; 
@@ -164,7 +165,9 @@ const float turntable_threshold = 2 * PI / turntable_steps_per_revolution;
 // X Gantry Globals
 float current_x_gantry_position = 0.0;
 long x_gantry_step_count = 0;
-const int x_gantry_step_interval = 10;
+const int num_x_gantry_steps_from_limit_switch = 300;
+const int x_gantry_step_interval = 3000;
+const int x_gantry_step_time = 300;
 const int x_gantry_steps_per_revolution = 1600;
 const float x_gantry_distance_per_revolution = 0.005; // 5 mm pitch
 const float x_gantry_length = 0.25; // 300 mm length, but safety of 250mm
@@ -174,7 +177,9 @@ const float x_gantry_threshold = x_gantry_distance_per_revolution / x_gantry_ste
 // Z Gantry Globals
 float current_z_gantry_position;
 long z_gantry_step_count;
-const int z_gantry_step_interval = 300;
+const int num_z_gantry_steps_from_limit_switch = 100;
+const int z_gantry_step_interval = 3000;
+const int z_gantry_step_time = 300;
 const int z_gantry_steps_per_revolution = 1600;
 const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch GUESS
 const float z_gantry_length = 0.4; // 450mm or ~18" length but safety of 400mm
@@ -285,6 +290,10 @@ bool home_x_gantry_flag = false;
 bool home_z_gantry_flag = false;
 bool home_turntable_flag = false;
 
+// done homing Publisher
+std_msgs::Bool done_homing_msg;
+ros::Publisher done_homing_pub("/TheBoatDoctor/done_homing", &done_homing_msg);
+
 // Home Command Callback
 // Returns the robot to the home position by setting the homing flags to true
 void homeCallback(const std_msgs::Empty& home_msg){
@@ -294,19 +303,24 @@ void homeCallback(const std_msgs::Empty& home_msg){
 }
 
 // Home Command Subscriber
-ros::Subscriber<std_msgs::Empty> home_sub("/TheBoatDoctor/Home", &homeCallback );
+ros::Subscriber<std_msgs::Empty> home_sub("/TheBoatDoctor/Home", &homeCallback);
 
-// COMMAND POSITION
-// Command Position Globals
+
+// MOVE ROBOT BASE
+// Move Robot Base Globals
 bool move_base_x_flag = false;
 bool move_base_y_flag = false;
 float desired_x_position;
 float desired_y_position;
 float desired_theta;
 
-// Command Position Callback
+// done moving robot base Publisher
+std_msgs::Bool done_moving_robot_base_msg;
+ros::Publisher done_moving_robot_base_pub("/TheBoatDoctor/done_moving_robot_base", &done_moving_robot_base_msg);
+
+// Move Robot Base Callback
 // Moves the robot to a specified location in the testbed using the ultrasonic sensors and motor encoders
-void cmdPosCallback(const geometry_msgs::Pose2D& pose_2d_msg)
+void moveRobotBaseCallback(const geometry_msgs::Pose2D& pose_2d_msg)
 {
   desired_x_position = pose_2d_msg.x;
   desired_y_position = pose_2d_msg.y;
@@ -320,10 +334,16 @@ void cmdPosCallback(const geometry_msgs::Pose2D& pose_2d_msg)
   {
     move_base_y_flag = true;
   } 
+  if(!move_base_x_flag && !move_base_y_flag)
+  {
+    done_moving_robot_base_msg.data = true;
+    done_moving_robot_base_pub.publish(done_moving_robot_base_msg);
+  }
 }
 
-// Command Position Subscriber
-ros::Subscriber<geometry_msgs::Pose2D> cmd_pos_sub("/TheBoatDoctor/cmd_pos", cmdPosCallback);
+// Move Robot Base Subscriber
+ros::Subscriber<geometry_msgs::Pose2D> move_robot_base_sub("/TheBoatDoctor/move_robot_base", &moveRobotBaseCallback);
+
 
 // COMMAND VELOCITY
 // Command Velocity Callback
@@ -402,23 +422,24 @@ void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
 }
 
 // Command Velocity Subscriber
-ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("/TheBoatDoctor/cmd_vel", cmdVelCallback);
+ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("/TheBoatDoctor/cmd_vel", &cmdVelCallback);
 
-// COMMAND JOINT POSITIONS
-// Command Joint Positions Globals
+// MOVE GANTRY
+// Move Gantry Globals
 bool move_x_gantry_flag = false;
 bool move_z_gantry_flag = false;
-bool turn_turntable_flag = false;
-float desired_turntable_theta;
 float desired_x_gantry_position;
 float desired_z_gantry_position;
 
-// Command Joint Positions Callback
-void cmdJointPosCallback(const geometry_msgs::Point& cmd_joint_pos_msg)
+// done moving gantry Publisher
+std_msgs::Bool done_moving_gantry_msg;
+ros::Publisher done_moving_gantry_pub("/TheBoatDoctor/done_moving_gantry", &done_moving_gantry_msg);
+
+// Move Gantry Callback
+void moveGantryCallback(const geometry_msgs::Pose2D& move_gantry_msg)
 {
-  desired_turntable_theta = cmd_joint_pos_msg.y;
-  desired_x_gantry_position = cmd_joint_pos_msg.x;
-  desired_z_gantry_position = cmd_joint_pos_msg.z;
+  desired_x_gantry_position = move_gantry_msg.x;
+  desired_z_gantry_position = move_gantry_msg.y;
   
   if(abs(desired_x_gantry_position - current_x_gantry_position) > x_gantry_threshold)
   {
@@ -428,14 +449,45 @@ void cmdJointPosCallback(const geometry_msgs::Point& cmd_joint_pos_msg)
   {
     move_z_gantry_flag = true;
   }
+  if(!move_x_gantry_flag && !move_z_gantry_flag)
+  {
+    done_moving_gantry_msg.data = true;
+    done_moving_gantry_pub.publish(done_moving_gantry_msg);
+  }
+}
+
+// Move Gantry Subscriber
+ros::Subscriber<geometry_msgs::Pose2D> move_gantry_sub("/TheBoatDoctor/move_gantry", &moveGantryCallback);
+
+
+// TURN TURNTABLE
+// Turn Turntable Globals
+bool turn_turntable_flag = false;
+float desired_turntable_theta;
+
+// done turning turntable Publisher
+std_msgs::Bool done_turning_turntable_msg;
+ros::Publisher done_turning_turntable_pub("/TheBoatDoctor/done_turning_turntable", &done_turning_turntable_msg);
+
+// Turn Turntable Callback
+void turnTurntableCallback(const geometry_msgs::Pose2D& turn_turntable_msg)
+{
+  desired_turntable_theta = turn_turntable_msg.theta;
+  
   if(abs(desired_turntable_theta - current_turntable_theta) > turntable_threshold)
   {
     turn_turntable_flag = true;
   }
+  else
+  {
+    done_turning_turntable_msg.data = true;
+    done_turning_turntable_pub.publish(done_turning_turntable_msg);
+  } 
 }
 
-// Command Joint Positions Subscriber
-ros::Subscriber<geometry_msgs::Point> cmd_joint_pos_sub("/TheBoatDoctor/cmd_joint_pos", cmdJointPosCallback);
+// Turn Turntable Subscriber
+ros::Subscriber<geometry_msgs::Pose2D> turn_turntable_sub("/TheBoatDoctor/turn_turntable", &turnTurntableCallback);
+
 
 // INTERRUPT SERVICE ROUTINES
 // Interrupt Service Routines for Motor Encoders
@@ -626,15 +678,20 @@ void setup()
   nh.advertise(ultrasonic_pose_pub);
   nh.advertise(imu_pub);
   nh.advertise(joint_states_pub);
+  nh.advertise(done_homing_pub);
+  nh.advertise(done_moving_robot_base_pub);
+  nh.advertise(done_moving_gantry_pub);
+  nh.advertise(done_turning_turntable_pub);
 
   // Subscribe to topics
   nh.subscribe(led_switch_sub);
   nh.subscribe(pump_switch_sub);
   nh.subscribe(stop_sub);
   nh.subscribe(home_sub);
-  nh.subscribe(cmd_pos_sub);
+  nh.subscribe(move_robot_base_sub);
   nh.subscribe(cmd_vel_sub);
-  nh.subscribe(cmd_joint_pos_sub);
+  nh.subscribe(move_gantry_sub);
+  nh.subscribe(turn_turntable_sub);
 
   // Ultrasonic Sensor Msg Setup Code
   front_ultrasonic_range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
@@ -713,7 +770,7 @@ void homeXGantry()
     digitalWrite(XGantryStepperPulse, LOW);
     x_gantry_step_count--;
 
-    delayMicroseconds(1000);
+    delayMicroseconds(x_gantry_step_time);
   }
   
   // Check to see if the X Axis Limit Switch was hit
@@ -743,14 +800,14 @@ void XGantryCalibrationSequence()
    digitalWrite(XGantryStepperPulse, HIGH);
    digitalWrite(XGantryStepperPulse, LOW);
    
-   delayMicroseconds(1000);
+   delayMicroseconds(x_gantry_step_time);
   }
-  for (int i = 1; i < 300; i++)
+  for (int i = 1; i < num_x_gantry_steps_from_limit_switch; i++)
   {
    digitalWrite(XGantryStepperPulse, HIGH);
    digitalWrite(XGantryStepperPulse, LOW);
 
-   delayMicroseconds(1000);
+   delayMicroseconds(x_gantry_step_time);
   }
 }
 
@@ -765,7 +822,7 @@ void homeZGantry()
     digitalWrite(ZGantryStepperPulse, LOW);
     z_gantry_step_count--;
 
-    delayMicroseconds(1000);
+    delayMicroseconds(z_gantry_step_time);
   }
 
   // Check to see if the Z Axis Limit Switch was hit
@@ -795,14 +852,14 @@ void ZGantryCalibrationSequence()
    digitalWrite(ZGantryStepperPulse, HIGH);
    digitalWrite(ZGantryStepperPulse, LOW);
    
-   delayMicroseconds(1000);
+   delayMicroseconds(z_gantry_step_time);
   }
-  for (int i = 1; i < 100; i++)
+  for (int i = 1; i < num_z_gantry_steps_from_limit_switch; i++)
   {
    digitalWrite(ZGantryStepperPulse, HIGH);
    digitalWrite(ZGantryStepperPulse, LOW);
 
-   delayMicroseconds(1000);
+   delayMicroseconds(z_gantry_step_time);
   }
 }
 
@@ -825,8 +882,10 @@ void homeTurntable()
   else if(current_turntable_step_count == 0)
   {
     home_turntable_flag = false;
+    done_homing_msg.data = true;
+    done_homing_pub.publish(done_homing_msg);
   }
-  current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+  current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
 }
 
 void updateTransform()
@@ -1003,7 +1062,7 @@ void loop()
   publishJointStates();
 
   nh.spinOnce();
-  delay(10);
+  delay(3);
 }
 
 void checkBasePosition()
@@ -1029,6 +1088,11 @@ void moveBaseX()
     digitalWrite(RightMotorIn1, LOW);
     digitalWrite(RightMotorIn2, LOW); 
     move_base_x_flag = false;
+    if(!move_base_y_flag)
+    {
+      done_moving_robot_base_msg.data = true;
+      done_moving_robot_base_pub.publish(done_moving_robot_base_msg);
+    }
   }
   else
   {
@@ -1074,6 +1138,11 @@ void moveBaseY()
     digitalWrite(BackMotorIn1, LOW);
     digitalWrite(BackMotorIn2, LOW);
     move_base_y_flag = false;
+    if(!move_base_x_flag)
+    {
+      done_moving_robot_base_msg.data = true;
+      done_moving_robot_base_pub.publish(done_moving_robot_base_msg);
+    }
   }
   else
   {
@@ -1117,19 +1186,21 @@ void moveXGantry()
     // Move X Gantry Forward
     digitalWrite(XGantryStepperDirection, HIGH);
 
-    for (long i = 0; i < num_x_gantry_steps; i++)
+    for (long i = 0; i < min(x_gantry_step_interval, num_x_gantry_steps); i++)
     {         
       if(x_gantry_step_count >= max_x_gantry_steps)
       {
         current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
         move_x_gantry_flag = false;
+        done_moving_gantry_msg.data = false;
+        done_moving_gantry_pub.publish(done_moving_gantry_msg);
         return;
       }
       digitalWrite(XGantryStepperPulse, HIGH);
       digitalWrite(XGantryStepperPulse, LOW);
       x_gantry_step_count++;
 
-      delayMicroseconds(300);
+      delayMicroseconds(x_gantry_step_time);
     }
   }
   else
@@ -1137,19 +1208,21 @@ void moveXGantry()
     // Move X Gantry Back
     digitalWrite(XGantryStepperDirection, LOW);
 
-    for (long i = 0; i < -num_x_gantry_steps; i++)
+    for (long i = 0; i < min(x_gantry_step_interval, -num_x_gantry_steps); i++)
     {         
       if(x_gantry_step_count == 0)
       {
         current_x_gantry_position = 0.0;
         move_x_gantry_flag = false;
+        done_moving_gantry_msg.data = false;
+        done_moving_gantry_pub.publish(done_moving_gantry_msg);
         return;
       }
       digitalWrite(XGantryStepperPulse, HIGH);
       digitalWrite(XGantryStepperPulse, LOW);
       x_gantry_step_count--;
 
-      delayMicroseconds(300);
+      delayMicroseconds(x_gantry_step_time);
     }
   }
   current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
@@ -1157,6 +1230,11 @@ void moveXGantry()
   if(abs(current_x_gantry_position - desired_x_gantry_position) <= x_gantry_threshold)
   {
     move_x_gantry_flag = false;
+    if(!move_z_gantry_flag)
+    {
+      done_moving_gantry_msg.data = true;
+      done_moving_gantry_pub.publish(done_moving_gantry_msg);
+    }
   }
 }
 
@@ -1175,13 +1253,15 @@ void moveZGantry()
       {
         current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
         move_z_gantry_flag = false;
+        done_moving_gantry_msg.data = false;
+        done_moving_gantry_pub.publish(done_moving_gantry_msg);
         return;
       }
       digitalWrite(ZGantryStepperPulse, HIGH);
       digitalWrite(ZGantryStepperPulse, LOW);
       z_gantry_step_count++;
 
-      delayMicroseconds(500);
+      delayMicroseconds(z_gantry_step_time);
     }
   }
   else
@@ -1195,13 +1275,15 @@ void moveZGantry()
       {
         current_z_gantry_position = 0.0;
         move_z_gantry_flag = false;
+        done_moving_gantry_msg.data = false;
+        done_moving_gantry_pub.publish(done_moving_gantry_msg);
         return;
       }
       digitalWrite(ZGantryStepperPulse, HIGH);
       digitalWrite(ZGantryStepperPulse, LOW);
       z_gantry_step_count--;
 
-      delayMicroseconds(500);
+      delayMicroseconds(z_gantry_step_time);
     }
   }
   current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
@@ -1209,6 +1291,11 @@ void moveZGantry()
   if(abs(current_z_gantry_position - desired_z_gantry_position) <= z_gantry_threshold)
   {
     move_z_gantry_flag = false;
+    if(!move_x_gantry_flag)
+    {
+      done_moving_gantry_msg.data = true;
+      done_moving_gantry_pub.publish(done_moving_gantry_msg);
+    }
   }
 }
 
@@ -1221,12 +1308,14 @@ void turnTurntable()
     // Turn Clockwise
     digitalWrite(TurntableStepperDirection, HIGH);
 
-    for (int i = 1; i < num_turntable_steps; i++)
+    for (int i = 1; i < min(turntable_step_interval, num_turntable_steps); i++)
     {
       if(current_turntable_step_count >= max_turntable_steps)
       {
-        current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
         turn_turntable_flag = false;
+        done_turning_turntable_msg.data = false;
+        done_turning_turntable_pub.publish(done_turning_turntable_msg);
         return;
       }
 
@@ -1234,22 +1323,22 @@ void turnTurntable()
       digitalWrite(TurntableStepperPulse, LOW);
       current_turntable_step_count++;
 
-      delayMicroseconds(10000);
+      delayMicroseconds(turntable_step_time);
     }
-    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
-    turn_turntable_flag = false;
   }
   else
   {
     // Turn Counter Clockwise
     digitalWrite(TurntableStepperDirection, LOW);
 
-    for (int i = 1; i < -num_turntable_steps; i++)
+    for (int i = 1; i < min(turntable_step_interval, -num_turntable_steps); i++)
     {
       if(current_turntable_step_count <= min_turntable_steps)
       {
-        current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+        current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
         turn_turntable_flag = false;
+        done_turning_turntable_msg.data = false;
+        done_turning_turntable_pub.publish(done_turning_turntable_msg);
         return;
       }
 
@@ -1257,9 +1346,16 @@ void turnTurntable()
       digitalWrite(TurntableStepperPulse, LOW);
       current_turntable_step_count--;
 
-      delayMicroseconds(10000);
+      delayMicroseconds(turntable_step_time);
     }
-    current_turntable_theta = (current_turntable_step_count / turntable_steps_per_revolution) * 2 * PI;
+  }
+
+  current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
+
+  if(abs(current_turntable_theta - desired_turntable_theta) <= turntable_threshold)
+  {
     turn_turntable_flag = false;
+    done_turning_turntable_msg.data = true;
+    done_turning_turntable_pub.publish(done_turning_turntable_msg);
   }
 }
