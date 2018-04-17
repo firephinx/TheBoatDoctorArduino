@@ -142,6 +142,8 @@ const float distance_between_wheels = 0.33333; // There is around 0.333m (13.1")
 const float distance_traveled_per_wheel_revolution = wheel_diameter * PI; // m
 const float max_base_speed = distance_traveled_per_wheel_revolution * motor_rpm / 60.0; // m/s
 const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor encoder, but only using an interrupt for channel A
+const float min_x_position = 0.25;
+const float min_y_position = 0.25;
 const float x_position_threshold = 0.003;
 const float y_position_threshold = 0.003;
 const float avg_x_position_threshold = 0.007;
@@ -1094,6 +1096,16 @@ void moveBaseX()
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
   }
+  else if(current_x_position < min_x_position)
+  {
+    digitalWrite(LeftMotorIn1, LOW);
+    digitalWrite(LeftMotorIn2, LOW);  
+    digitalWrite(RightMotorIn1, LOW);
+    digitalWrite(RightMotorIn2, LOW); 
+    move_base_x_flag = false;
+    done_moving_robot_base_msg.data = false;
+    done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
+  }
   else
   {
     long current_left_motor_encoder_count = left_motor_encoder_count;
@@ -1143,6 +1155,16 @@ void moveBaseY()
       done_moving_robot_base_msg.data = true;
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
+  }
+  else if(current_y_position < min_y_position)
+  {
+    digitalWrite(FrontMotorIn1, LOW);
+    digitalWrite(FrontMotorIn2, LOW);  
+    digitalWrite(BackMotorIn1, LOW);
+    digitalWrite(BackMotorIn2, LOW);
+    move_base_y_flag = false;
+    done_moving_robot_base_msg.data = false;
+    done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
   }
   else
   {
