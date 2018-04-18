@@ -321,7 +321,6 @@ void homeCallback(const std_msgs::Empty& home_msg){
 // Home Command Subscriber
 ros::Subscriber<std_msgs::Empty> home_sub("/TheBoatDoctor/Home", &homeCallback);
 
-
 // MOVE ROBOT BASE
 // Move Robot Base Globals
 bool move_base_x_flag = false;
@@ -503,6 +502,64 @@ void turnTurntableCallback(const geometry_msgs::Pose2D& turn_turntable_msg)
 
 // Turn Turntable Subscriber
 ros::Subscriber<geometry_msgs::Pose2D> turn_turntable_sub("/TheBoatDoctor/turn_turntable", &turnTurntableCallback);
+
+// RESET COMMAND
+// Reset Command Callback
+// Resets the robot's desired positions to the default positions.
+void resetCallback(const std_msgs::Empty& reset_msg){
+  digitalWrite(FrontMotorEnable, LOW);
+  digitalWrite(LeftMotorEnable, LOW);
+  digitalWrite(BackMotorEnable, LOW);
+  digitalWrite(RightMotorEnable, LOW);
+  digitalWrite(FrontMotorIn1, LOW);
+  digitalWrite(FrontMotorIn2, LOW); 
+  digitalWrite(LeftMotorIn1, LOW);
+  digitalWrite(LeftMotorIn2, LOW); 
+  digitalWrite(BackMotorIn1, LOW);
+  digitalWrite(BackMotorIn2, LOW);
+  digitalWrite(RightMotorIn1, LOW);
+  digitalWrite(RightMotorIn2, LOW);
+
+  desired_x_vel = 0.0;
+  desired_y_vel = 0.0;
+  desired_x_position = current_x_position;
+  desired_y_position = current_y_position;
+  desired_turntable_theta = 0.0;
+  desired_x_gantry_position = 0.0;
+  desired_z_gantry_position = 0.0;
+}
+
+// Reset Command Subscriber
+ros::Subscriber<std_msgs::Empty> reset_sub("/TheBoatDoctor/Reset", &resetCallback);
+
+// STAY COMMAND
+// Stay Command Callback
+// Sets the robot's desired positions to the current positions.
+void stayCallback(const std_msgs::Empty& stay_msg){
+  digitalWrite(FrontMotorEnable, LOW);
+  digitalWrite(LeftMotorEnable, LOW);
+  digitalWrite(BackMotorEnable, LOW);
+  digitalWrite(RightMotorEnable, LOW);
+  digitalWrite(FrontMotorIn1, LOW);
+  digitalWrite(FrontMotorIn2, LOW); 
+  digitalWrite(LeftMotorIn1, LOW);
+  digitalWrite(LeftMotorIn2, LOW); 
+  digitalWrite(BackMotorIn1, LOW);
+  digitalWrite(BackMotorIn2, LOW);
+  digitalWrite(RightMotorIn1, LOW);
+  digitalWrite(RightMotorIn2, LOW);
+
+  desired_x_vel = 0.0;
+  desired_y_vel = 0.0;
+  desired_x_position = current_x_position;
+  desired_y_position = current_y_position;
+  desired_turntable_theta = current_turntable_theta;
+  desired_x_gantry_position = current_x_gantry_position;
+  desired_z_gantry_position = current_z_gantry_position;
+}
+
+// Stay Command Subscriber
+ros::Subscriber<std_msgs::Empty> stay_sub("/TheBoatDoctor/Stay", &stayCallback);
 
 
 // INTERRUPT SERVICE ROUTINES
@@ -706,6 +763,8 @@ void setup()
   nh.subscribe(pump_switch_sub);
   nh.subscribe(stop_sub);
   nh.subscribe(home_sub);
+  nh.subscribe(reset_sub);
+  nh.subscribe(stay_sub);
   nh.subscribe(move_robot_base_sub);
   nh.subscribe(cmd_vel_sub);
   nh.subscribe(move_gantry_sub);
