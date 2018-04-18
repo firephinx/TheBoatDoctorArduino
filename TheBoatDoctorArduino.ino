@@ -212,7 +212,7 @@ void ledSwitchCallback(const std_msgs::Bool& led_switch_msg){
   }
   led_status_msg.data = led_switch_msg.data;
   led_status_pub.publish(&led_status_msg);
-  delay(1);
+  delay(10);
   led_status_pub.publish(&led_status_msg);
 }
 
@@ -241,7 +241,7 @@ void pumpSwitchCallback(const std_msgs::Bool& pump_switch_msg){
   }
   pump_status_msg.data = pump_switch_msg.data;
   pump_status_pub.publish(&pump_status_msg);
-  delay(1);
+  delay(10);
   pump_status_pub.publish(&pump_status_msg);
 }
 
@@ -357,7 +357,7 @@ void moveRobotBaseCallback(const geometry_msgs::Pose2D& pose_2d_msg)
   {
     done_moving_robot_base_msg.data = true;
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
-    delay(1);
+    delay(10);
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
   }
 }
@@ -478,7 +478,7 @@ void moveGantryCallback(const geometry_msgs::Pose2D& move_gantry_msg)
   {
     done_moving_gantry_msg.data = true;
     done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-    delay(1);
+    delay(10);
     done_moving_gantry_pub.publish(&done_moving_gantry_msg);
   }
 }
@@ -509,7 +509,7 @@ void turnTurntableCallback(const geometry_msgs::Pose2D& turn_turntable_msg)
   {
     done_turning_turntable_msg.data = true;
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
-    delay(1);
+    delay(10);
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
   } 
 }
@@ -975,7 +975,7 @@ void homeTurntable()
     home_turntable_flag = false;
     done_homing_msg.data = true;
     done_homing_pub.publish(&done_homing_msg);
-    delay(1);
+    delay(10);
     done_homing_pub.publish(&done_homing_msg);
   }
   current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
@@ -1038,8 +1038,6 @@ void publishIMU()
   imu_msg.linear_acceleration.y = imu.calcAccel(imu.ay) * 9.80665;
   imu_msg.linear_acceleration.z = imu.calcAccel(imu.az) * 9.80665;
   imu_pub.publish(&imu_msg);
-  delay(1);
-  imu_pub.publish(&imu_msg);
 }
 
 // 
@@ -1093,10 +1091,6 @@ void publishUltrasonicInfo()
   front_ultrasonic_range_pub.publish(&front_ultrasonic_range_msg);
   right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
   ultrasonic_pose_pub.publish(&ultrasonic_pose_msg);
-  delay(1);
-  front_ultrasonic_range_pub.publish(&front_ultrasonic_range_msg);
-  right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
-  ultrasonic_pose_pub.publish(&ultrasonic_pose_msg);
 }
 
 // Publish the current joint state positions of the turntable, x-gantry, and z-gantry to ROS
@@ -1107,8 +1101,6 @@ void publishJointStates()
   joint_state_positions[1] = current_x_gantry_position;
   joint_state_positions[2] =  current_z_gantry_position;
   joint_states_msg.position = joint_state_positions;
-  joint_states_pub.publish(&joint_states_msg);
-  delay(1);
   joint_states_pub.publish(&joint_states_msg);
 }
 
@@ -1193,7 +1185,7 @@ void moveBaseX()
     {
       done_moving_robot_base_msg.data = true;
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
-      delay(1);
+      delay(10);
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
   }
@@ -1206,7 +1198,7 @@ void moveBaseX()
     move_base_x_flag = false;
     done_moving_robot_base_msg.data = false;
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
-    delay(1);
+    delay(10);
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
   }
   else
@@ -1257,7 +1249,7 @@ void moveBaseY()
     {
       done_moving_robot_base_msg.data = true;
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
-      delay(1);
+      delay(10);
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
   }
@@ -1270,7 +1262,7 @@ void moveBaseY()
     move_base_y_flag = false;
     done_moving_robot_base_msg.data = false;
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
-    delay(1);
+    delay(10);
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
   }
   else
@@ -1323,7 +1315,7 @@ void moveXGantry()
         move_x_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-        delay(1);
+        delay(10);
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
@@ -1347,7 +1339,7 @@ void moveXGantry()
         move_x_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-        delay(1);
+        delay(10);
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
@@ -1367,7 +1359,7 @@ void moveXGantry()
     {
       done_moving_gantry_msg.data = true;
       done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-      delay(1);
+      delay(10);
       done_moving_gantry_pub.publish(&done_moving_gantry_msg);
     }
   }
@@ -1390,7 +1382,7 @@ void moveZGantry()
         move_z_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-        delay(1);
+        delay(10);
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
@@ -1414,7 +1406,7 @@ void moveZGantry()
         move_z_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-        delay(1);
+        delay(10);
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
@@ -1434,7 +1426,7 @@ void moveZGantry()
     {
       done_moving_gantry_msg.data = true;
       done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-      delay(1);
+      delay(10);
       done_moving_gantry_pub.publish(&done_moving_gantry_msg);
     }
   }
@@ -1449,7 +1441,7 @@ void turnTurntable()
     turn_turntable_flag = false;
     done_turning_turntable_msg.data = true;
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
-    delay(1);
+    delay(10);
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
     return;
   }
@@ -1466,7 +1458,7 @@ void turnTurntable()
         turn_turntable_flag = false;
         done_turning_turntable_msg.data = false;
         done_turning_turntable_pub.publish(&done_turning_turntable_msg);
-        delay(1);
+        delay(10);
         done_turning_turntable_pub.publish(&done_turning_turntable_msg);
         return;
       }
@@ -1491,7 +1483,7 @@ void turnTurntable()
         turn_turntable_flag = false;
         done_turning_turntable_msg.data = false;
         done_turning_turntable_pub.publish(&done_turning_turntable_msg);
-        delay(1);
+        delay(10);
         done_turning_turntable_pub.publish(&done_turning_turntable_msg);
         return;
       }
@@ -1511,7 +1503,7 @@ void turnTurntable()
     turn_turntable_flag = false;
     done_turning_turntable_msg.data = true;
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
-    delay(1);
+    delay(10);
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
   }
 }
