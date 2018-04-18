@@ -1295,6 +1295,7 @@ void moveXGantry()
         move_x_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
+        done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
       digitalWrite(XGantryStepperPulse, HIGH);
@@ -1317,6 +1318,7 @@ void moveXGantry()
         move_x_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
+        done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
       digitalWrite(XGantryStepperPulse, HIGH);
@@ -1334,6 +1336,7 @@ void moveXGantry()
     if(!move_z_gantry_flag)
     {
       done_moving_gantry_msg.data = true;
+      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
       done_moving_gantry_pub.publish(&done_moving_gantry_msg);
     }
   }
@@ -1355,6 +1358,7 @@ void moveZGantry()
         current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
         move_z_gantry_flag = false;
         done_moving_gantry_msg.data = false;
+        done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
@@ -1378,6 +1382,7 @@ void moveZGantry()
         move_z_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
+        done_moving_gantry_pub.publish(&done_moving_gantry_msg);
         return;
       }
       digitalWrite(ZGantryStepperPulse, HIGH);
@@ -1395,6 +1400,7 @@ void moveZGantry()
     if(!move_x_gantry_flag)
     {
       done_moving_gantry_msg.data = true;
+      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
       done_moving_gantry_pub.publish(&done_moving_gantry_msg);
     }
   }
