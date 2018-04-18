@@ -191,6 +191,11 @@ const float z_gantry_threshold = z_gantry_distance_per_revolution / z_gantry_ste
 // ROS Callback Functions and Subscribers
 
 // LED SWITCH
+
+// led status Publisher
+std_msgs::Bool led_status_msg;
+ros::Publisher led_status_pub("/TheBoatDoctor/led_status", &led_status_msg);
+
 // LED Switch Callback
 // Turns on the LEDs if the msg contains true, 
 // otherwise turns off the LEDs if the msg contains false
@@ -205,12 +210,19 @@ void ledSwitchCallback(const std_msgs::Bool& led_switch_msg){
   {
     digitalWrite(LEDSwitch, LOW);
   }
+  led_status_msg.data = led_switch_msg.data;
+  led_status_pub.publish(&led_status_msg);
 }
 
 // LED Switch Subscriber
 ros::Subscriber<std_msgs::Bool> led_switch_sub("/TheBoatDoctor/LED_Switch", &ledSwitchCallback);
 
 // PUMP SWITCH
+
+// pump status Publisher
+std_msgs::Bool pump_status_msg;
+ros::Publisher pump_status_pub("/TheBoatDoctor/pump_status", &pump_status_msg);
+
 // Pump Switch Callback
 // Turns on the pump if the msg contains true, 
 // otherwise turns off the pump if the msg contains false
@@ -225,6 +237,8 @@ void pumpSwitchCallback(const std_msgs::Bool& pump_switch_msg){
   {
     digitalWrite(PumpSwitch, LOW);
   }
+  pump_status_msg.data = pump_switch_msg.data;
+  pump_status_pub.publish(&pump_status_msg);
 }
 
 ros::Subscriber<std_msgs::Bool> pump_switch_sub("/TheBoatDoctor/Pump_Switch", &pumpSwitchCallback);
@@ -680,6 +694,8 @@ void setup()
   nh.advertise(ultrasonic_pose_pub);
   nh.advertise(imu_pub);
   nh.advertise(joint_states_pub);
+  nh.advertise(led_status_pub);
+  nh.advertise(pump_status_pub);
   nh.advertise(done_homing_pub);
   nh.advertise(done_moving_robot_base_pub);
   nh.advertise(done_moving_gantry_pub);
