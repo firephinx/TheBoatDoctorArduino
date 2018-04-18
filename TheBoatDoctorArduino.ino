@@ -338,6 +338,7 @@ void moveRobotBaseCallback(const geometry_msgs::Pose2D& pose_2d_msg)
   } 
   if(!move_base_x_flag && !move_base_y_flag)
   {
+    delay(1);
     done_moving_robot_base_msg.data = true;
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
   }
@@ -453,6 +454,7 @@ void moveGantryCallback(const geometry_msgs::Pose2D& move_gantry_msg)
   }
   if(!move_x_gantry_flag && !move_z_gantry_flag)
   {
+    delay(1);
     done_moving_gantry_msg.data = true;
     done_moving_gantry_pub.publish(&done_moving_gantry_msg);
   }
@@ -482,6 +484,7 @@ void turnTurntableCallback(const geometry_msgs::Pose2D& turn_turntable_msg)
   }
   else
   {
+    delay(1);
     done_turning_turntable_msg.data = true;
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
   } 
@@ -1325,7 +1328,14 @@ void turnTurntable()
 {
   int num_turntable_steps = (int)(((desired_turntable_theta - current_turntable_theta) / (2 * PI)) * turntable_steps_per_revolution);
 
-  if(num_turntable_steps > 0)
+  if(num_turntable_steps == 0)
+  {
+    turn_turntable_flag = false;
+    done_turning_turntable_msg.data = true;
+    done_turning_turntable_pub.publish(&done_turning_turntable_msg);
+    return;
+  }
+  else if(num_turntable_steps > 0)
   {
     // Turn Clockwise
     digitalWrite(TurntableStepperDirection, HIGH);
