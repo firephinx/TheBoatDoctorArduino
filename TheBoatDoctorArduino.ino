@@ -152,6 +152,12 @@ const int min_base_motor_speed = 100;
 const int max_base_motor_speed = 255;
 float current_avg_x_position;
 float current_avg_y_position;
+float previous_x_position_error;
+float previous_y_position_error;
+float x_position_integral_error = 0.0;
+float y_position_integral_error = 0.0;
+long previous_x_time = millis();
+long previous_y_time = millis();
 const float avg_filter_size = 10;
 
 // Turntable Globals
@@ -878,7 +884,7 @@ void homeXGantry()
   }
 
   // Update current_x_gantry_position with the current x_gantry_step_count
-  current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+  current_x_gantry_position = ((float)(x_gantry_step_count) / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
 }
 
 // Conducts the X Gantry Calibration Sequence after the Limit Switch has been hit, which involves 
@@ -930,7 +936,7 @@ void homeZGantry()
   }
 
   // Update current_z_gantry_position with the current z_gantry_step_count
-  current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+  current_z_gantry_position = ((float)(z_gantry_step_count) / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
 }
 
 // Conducts the Z Gantry Calibration Sequence after the Limit Switch has been hit, which involves 
@@ -1172,9 +1178,25 @@ void checkBasePosition()
 
 void moveBaseX()
 {
-  float error_x_position = desired_x_position - current_x_position;
+  float current_x_position_error = desired_x_position - current_x_position;
+  long current_x_time = millis();
+
+  float dt = ((float)(current_x_time - previous_x_time)) / 1000;
+  float Kp = 0.1;
+  float Ki = 0;
+  float Kd = 1.3;
+  float x_position_derivative = (current_x_position_error + previous_x_position_error)/dt;
+  int x_motor_speed = (int)((Kp * current_x_position_error) + (Ki * x_position_integral_error) + (Kd * x_position_derivative));
+
+  if (x_motor_speed > 255)
+       x_motor_speed = 255;
+  else if (x_motor_speed < -255)
+       x_motor_speed = -255;
+  else
+       x_position_integral_error += (current_x_position_error * dt);
+  previous_x_position_error = current_x_position_error;
   
-  if(abs(error_x_position) < x_position_threshold)
+  if(abs(current_x_position_error) < x_position_threshold)
   {
     digitalWrite(LeftMotorIn1, LOW);
     digitalWrite(LeftMotorIn2, LOW);  
@@ -1206,7 +1228,7 @@ void moveBaseX()
     long current_left_motor_encoder_count = left_motor_encoder_count;
     long current_right_motor_encoder_count = right_motor_encoder_count;
 
-    long num_x_encoder_counts = (long)((error_x_position / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
+    long num_x_encoder_counts = (long)((current_x_position_error / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
     
     long target_left_motor_encoder_count = left_motor_encoder_count - num_x_encoder_counts;
     long target_right_motor_encoder_count = right_motor_encoder_count + num_x_encoder_counts;
@@ -1220,6 +1242,8 @@ void moveBaseX()
       digitalWrite(RightMotorIn2, HIGH);
       analogWrite(LeftMotorEnable, min_base_motor_speed);
       analogWrite(RightMotorEnable, min_base_motor_speed);
+      /*analogWrite(LeftMotorEnable, x_motor_speed);
+      analogWrite(RightMotorEnable, x_motor_speed);*/
     }
     else
     {
@@ -1230,15 +1254,34 @@ void moveBaseX()
       digitalWrite(RightMotorIn2, LOW); 
       analogWrite(LeftMotorEnable, min_base_motor_speed);
       analogWrite(RightMotorEnable, min_base_motor_speed);
+      /*analogWrite(LeftMotorEnable, x_motor_speed);
+      analogWrite(RightMotorEnable, x_motor_speed);*/
     }
   }
 }
 
 void moveBaseY()
 {
-  float error_y_position = desired_y_position - current_y_position;
+  float current_y_position_error = desired_y_position - current_y_position;
 
-  if(abs(error_y_position) < y_position_threshold)
+  long current_y_time = millis();
+
+  float dt = ((float)(current_y_time - previous_y_time)) / 1000;
+  float Kp = 0.1;
+  float Ki = 0;
+  float Kd = 1.3;
+  float y_position_derivative = (current_y_position_error + previous_y_position_error)/dt;
+  int y_motor_speed = (int)((Kp * current_y_position_error) + (Ki * y_position_integral_error) + (Kd * y_position_derivative));
+
+  if (y_motor_speed > 255)
+       y_motor_speed = 255;
+  else if (y_motor_speed < -255)
+       y_motor_speed = -255;
+  else
+       y_position_integral_error += (current_y_position_error * dt);
+  previous_y_position_error = current_y_position_error;
+
+  if(abs(current_y_position_error) < y_position_threshold)
   {
     digitalWrite(FrontMotorIn1, LOW);
     digitalWrite(FrontMotorIn2, LOW);  
@@ -1270,7 +1313,7 @@ void moveBaseY()
     long current_front_motor_encoder_count = front_motor_encoder_count;
     long current_back_motor_encoder_count = back_motor_encoder_count;
 
-    long num_y_encoder_counts = (long)((error_y_position / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
+    long num_y_encoder_counts = (long)((current_y_position_error / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
 
     long target_front_motor_encoder_count = front_motor_encoder_count - num_y_encoder_counts;
     long target_back_motor_encoder_count = back_motor_encoder_count + num_y_encoder_counts;
@@ -1284,6 +1327,8 @@ void moveBaseY()
       digitalWrite(BackMotorIn2, HIGH);
       analogWrite(FrontMotorEnable, min_base_motor_speed);
       analogWrite(BackMotorEnable, min_base_motor_speed);
+      /*analogWrite(FrontMotorEnable, y_motor_speed);
+      analogWrite(BackMotorEnable, y_motor_speed);*/
     }
     else
     {
@@ -1294,6 +1339,8 @@ void moveBaseY()
       digitalWrite(BackMotorIn2, LOW);
       analogWrite(FrontMotorEnable, min_base_motor_speed);
       analogWrite(BackMotorEnable, min_base_motor_speed);
+      /*analogWrite(FrontMotorEnable, y_motor_speed);
+      analogWrite(BackMotorEnable, y_motor_speed);*/
     }
   }
 }
@@ -1311,7 +1358,7 @@ void moveXGantry()
     {         
       if(x_gantry_step_count >= max_x_gantry_steps)
       {
-        current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+        current_x_gantry_position = ((float)(x_gantry_step_count) / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
         move_x_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
@@ -1350,7 +1397,7 @@ void moveXGantry()
       delayMicroseconds(x_gantry_step_time);
     }
   }
-  current_x_gantry_position = (x_gantry_step_count / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
+  current_x_gantry_position = ((float)(x_gantry_step_count) / x_gantry_steps_per_revolution) * x_gantry_distance_per_revolution;
 
   if(abs(current_x_gantry_position - desired_x_gantry_position) <= x_gantry_threshold)
   {
@@ -1378,7 +1425,7 @@ void moveZGantry()
     {         
       if(z_gantry_step_count >= max_z_gantry_steps)
       {
-        current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+        current_z_gantry_position = ((float)(z_gantry_step_count) / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
         move_z_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
@@ -1417,7 +1464,7 @@ void moveZGantry()
       delayMicroseconds(z_gantry_step_time);
     }
   }
-  current_z_gantry_position = (z_gantry_step_count / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+  current_z_gantry_position = ((float)(z_gantry_step_count) / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
 
   if(abs(current_z_gantry_position - desired_z_gantry_position) <= z_gantry_threshold)
   {
