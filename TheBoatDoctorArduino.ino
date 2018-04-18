@@ -361,14 +361,18 @@ ros::Subscriber<geometry_msgs::Pose2D> move_robot_base_sub("/TheBoatDoctor/move_
 
 
 // COMMAND VELOCITY
+// Command Velocity Globals
+float desired_x_vel;
+float desired_y_vel;
+
 // Command Velocity Callback
 // Moves the robot at a given velocity
 void cmdVelCallback(const geometry_msgs::Twist& twist_msg)
 {
   if(!stop_flag)
   {
-    float desired_x_vel = twist_msg.linear.x;
-    float desired_y_vel = twist_msg.linear.y;
+    desired_x_vel = twist_msg.linear.x;
+    desired_y_vel = twist_msg.linear.y;
 
     if (desired_x_vel == 0.0)
     {
