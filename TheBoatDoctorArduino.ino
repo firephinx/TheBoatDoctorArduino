@@ -183,8 +183,8 @@ const int num_z_gantry_steps_from_limit_switch = 100;
 const int z_gantry_step_interval = 3000;
 const int z_gantry_step_time = 300;
 const int z_gantry_steps_per_revolution = 1600;
-const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch GUESS
-const float z_gantry_length = 0.4; // 450mm or ~18" length but safety of 400mm
+const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch
+const float z_gantry_length = 0.35; // 350mm or ~13.78"
 const long max_z_gantry_steps = (long)(z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 const float z_gantry_threshold = z_gantry_distance_per_revolution / z_gantry_steps_per_revolution;
 
