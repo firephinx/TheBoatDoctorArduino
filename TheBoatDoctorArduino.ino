@@ -338,7 +338,6 @@ void moveRobotBaseCallback(const geometry_msgs::Pose2D& pose_2d_msg)
   } 
   if(!move_base_x_flag && !move_base_y_flag)
   {
-    delay(1);
     done_moving_robot_base_msg.data = true;
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
   }
@@ -454,7 +453,6 @@ void moveGantryCallback(const geometry_msgs::Pose2D& move_gantry_msg)
   }
   if(!move_x_gantry_flag && !move_z_gantry_flag)
   {
-    delay(1);
     done_moving_gantry_msg.data = true;
     done_moving_gantry_pub.publish(&done_moving_gantry_msg);
   }
@@ -484,7 +482,6 @@ void turnTurntableCallback(const geometry_msgs::Pose2D& turn_turntable_msg)
   }
   else
   {
-    delay(1);
     done_turning_turntable_msg.data = true;
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
   } 
