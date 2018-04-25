@@ -338,25 +338,22 @@ bool move_base_y_flag = false;
 float desired_x_position;
 float desired_y_position;
 float desired_theta;
+
+float Kp = 300.0;
+float Ki = 0.0;
+float Kd = 0.0;
+
 float current_x_position_error;
 long current_x_time;
 float dx_time;
 float x_position_derivative;
 int x_motor_speed;
 
-float x_Kp = 0.1;
-float x_Ki = 0;
-float x_Kd = 1.3;
-
 float current_y_position_error;
 long current_y_time;
 float dy_time;
 float y_position_derivative;
 int y_motor_speed;
-
-float y_Kp = 0.1;
-float y_Ki = 0;
-float y_Kd = 1.3;
 
 // done moving robot base Publisher
 std_msgs::Bool done_moving_robot_base_msg;
@@ -1202,7 +1199,7 @@ void moveBaseX()
 
   dx_time = ((float)(current_x_time - previous_x_time)) / 1000;
   float x_position_derivative = (current_x_position_error + previous_x_position_error)/dx_time;
-  int x_motor_speed = (int)((x_Kp * current_x_position_error) + (x_Ki * x_position_integral_error) + (x_Kd * x_position_derivative));
+  int x_motor_speed = (int)((Kp * current_x_position_error) + (Ki * x_position_integral_error) + (Kd * x_position_derivative));
 
   if (x_motor_speed > 255)
        x_motor_speed = 255;
@@ -1281,7 +1278,7 @@ void moveBaseY()
   dy_time = ((float)(current_y_time - previous_y_time)) / 1000;
 
   y_position_derivative = (current_y_position_error + previous_y_position_error)/dy_time;
-  y_motor_speed = (int)((y_Kp * current_y_position_error) + (y_Ki * y_position_integral_error) + (y_Kd * y_position_derivative));
+  y_motor_speed = (int)((Kp * current_y_position_error) + (Ki * y_position_integral_error) + (Kd * y_position_derivative));
 
   if (y_motor_speed > 255)
        y_motor_speed = 255;
