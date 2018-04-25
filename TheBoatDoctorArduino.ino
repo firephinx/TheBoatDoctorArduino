@@ -178,7 +178,7 @@ const int x_gantry_step_interval = 3000;
 const int x_gantry_step_time = 300;
 const int x_gantry_steps_per_revolution = 1600;
 const float x_gantry_distance_per_revolution = 0.005; // 5 mm pitch
-const float x_gantry_length = 0.25; // 300 mm length, but safety of 250mm
+const float x_gantry_length = 0.23; // 300 mm length, but safety of 250mm
 const long max_x_gantry_steps = (long)(x_gantry_length / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
 const float x_gantry_threshold = x_gantry_distance_per_revolution / x_gantry_steps_per_revolution;
 
@@ -190,7 +190,7 @@ const int z_gantry_step_interval = 3000;
 const int z_gantry_step_time = 300;
 const int z_gantry_steps_per_revolution = 1600;
 const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch
-const float z_gantry_length = 0.35; // 350mm or ~13.78"
+const float z_gantry_length = 0.33; // 350mm or ~13.78"
 const long max_z_gantry_steps = (long)(z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 const float z_gantry_threshold = z_gantry_distance_per_revolution / z_gantry_steps_per_revolution;
 
@@ -355,10 +355,18 @@ void moveRobotBaseCallback(const geometry_msgs::Pose2D& pose_2d_msg)
   {
     move_base_x_flag = true;
   } 
+  else
+  {
+    move_base_x_flag = false;
+  }
   if(abs(desired_y_position - current_y_position) > y_position_threshold)
   {
     move_base_y_flag = true;
   } 
+  else
+  {
+    move_base_y_flag = false;
+  }
   if(!move_base_x_flag && !move_base_y_flag)
   {
     done_moving_robot_base_msg.data = true;
@@ -476,9 +484,17 @@ void moveGantryCallback(const geometry_msgs::Pose2D& move_gantry_msg)
   {
     move_x_gantry_flag = true;
   } 
+  else
+  {
+    move_x_gantry_flag = false;
+  }
   if(abs(desired_z_gantry_position - current_z_gantry_position) > z_gantry_threshold)
   {
     move_z_gantry_flag = true;
+  }
+  else
+  {
+    move_z_gantry_flag = false;
   }
   if(!move_x_gantry_flag && !move_z_gantry_flag)
   {
@@ -842,13 +858,13 @@ bool determineHoming()
 
 void home()
 {
-  if(home_x_gantry_flag)
-  {
-    homeXGantry();
-  }
-  else if(home_z_gantry_flag)
+  if(home_z_gantry_flag)
   {
     homeZGantry();
+  }
+  else if(home_x_gantry_flag)
+  {
+    homeXGantry();
   }
   else if(home_turntable_flag)
   {
