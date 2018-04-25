@@ -338,6 +338,25 @@ bool move_base_y_flag = false;
 float desired_x_position;
 float desired_y_position;
 float desired_theta;
+float current_x_position_error;
+long current_x_time;
+float dx_time;
+float x_position_derivative;
+int x_motor_speed;
+
+float x_Kp = 0.1;
+float x_Ki = 0;
+float x_Kd = 1.3;
+
+float current_y_position_error;
+long current_y_time;
+float dy_time;
+float y_position_derivative;
+int y_motor_speed;
+
+float y_Kp = 0.1;
+float y_Ki = 0;
+float y_Kd = 1.3;
 
 // done moving robot base Publisher
 std_msgs::Bool done_moving_robot_base_msg;
@@ -1158,10 +1177,6 @@ void loop()
       {
         moveBaseY();
       }
-      else
-      {
-        //checkBasePosition();
-      }
     }
   }
   
@@ -1180,36 +1195,21 @@ void loop()
   delay(3);
 }
 
-void checkBasePosition()
-{
-  if(abs(desired_x_position - current_avg_x_position) > avg_x_position_threshold)
-  {
-    move_base_x_flag = true;
-  } 
-  if(abs(desired_y_position - current_avg_y_position) > avg_y_position_threshold)
-  {
-    move_base_y_flag = true;
-  } 
-}
-
 void moveBaseX()
 {
-  float current_x_position_error = desired_x_position - current_x_position;
+  float current_x_position_error = desired_x_position - current_avg_x_position;
   long current_x_time = millis();
 
-  float dt = ((float)(current_x_time - previous_x_time)) / 1000;
-  float Kp = 0.1;
-  float Ki = 0;
-  float Kd = 1.3;
-  float x_position_derivative = (current_x_position_error + previous_x_position_error)/dt;
-  int x_motor_speed = (int)((Kp * current_x_position_error) + (Ki * x_position_integral_error) + (Kd * x_position_derivative));
+  dx_time = ((float)(current_x_time - previous_x_time)) / 1000;
+  float x_position_derivative = (current_x_position_error + previous_x_position_error)/dx_time;
+  int x_motor_speed = (int)((x_Kp * current_x_position_error) + (x_Ki * x_position_integral_error) + (x_Kd * x_position_derivative));
 
   if (x_motor_speed > 255)
        x_motor_speed = 255;
   else if (x_motor_speed < -255)
        x_motor_speed = -255;
   else
-       x_position_integral_error += (current_x_position_error * dt);
+       x_position_integral_error += (current_x_position_error * dx_time);
   previous_x_position_error = current_x_position_error;
   
   if(abs(current_x_position_error) < x_position_threshold)
@@ -1227,7 +1227,7 @@ void moveBaseX()
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
   }
-  else if(current_x_position < min_x_position)
+  else if(current_avg_x_position < min_x_position)
   {
     digitalWrite(LeftMotorIn1, LOW);
     digitalWrite(LeftMotorIn2, LOW);  
@@ -1256,10 +1256,8 @@ void moveBaseX()
       digitalWrite(LeftMotorIn2, LOW);  
       digitalWrite(RightMotorIn1, LOW);
       digitalWrite(RightMotorIn2, HIGH);
-      analogWrite(LeftMotorEnable, min_base_motor_speed);
-      analogWrite(RightMotorEnable, min_base_motor_speed);
-      /*analogWrite(LeftMotorEnable, x_motor_speed);
-      analogWrite(RightMotorEnable, x_motor_speed);*/
+      analogWrite(LeftMotorEnable, x_motor_speed);
+      analogWrite(RightMotorEnable, x_motor_speed);
     }
     else
     {
@@ -1268,33 +1266,29 @@ void moveBaseX()
       digitalWrite(LeftMotorIn2, HIGH);  
       digitalWrite(RightMotorIn1, HIGH);
       digitalWrite(RightMotorIn2, LOW); 
-      analogWrite(LeftMotorEnable, min_base_motor_speed);
-      analogWrite(RightMotorEnable, min_base_motor_speed);
-      /*analogWrite(LeftMotorEnable, x_motor_speed);
-      analogWrite(RightMotorEnable, x_motor_speed);*/
+      analogWrite(LeftMotorEnable, x_motor_speed);
+      analogWrite(RightMotorEnable, x_motor_speed);
     }
   }
 }
 
 void moveBaseY()
 {
-  float current_y_position_error = desired_y_position - current_y_position;
+  current_y_position_error = desired_y_position - current_avg_y_position;
 
-  long current_y_time = millis();
+  current_y_time = millis();
 
-  float dt = ((float)(current_y_time - previous_y_time)) / 1000;
-  float Kp = 0.1;
-  float Ki = 0;
-  float Kd = 1.3;
-  float y_position_derivative = (current_y_position_error + previous_y_position_error)/dt;
-  int y_motor_speed = (int)((Kp * current_y_position_error) + (Ki * y_position_integral_error) + (Kd * y_position_derivative));
+  dy_time = ((float)(current_y_time - previous_y_time)) / 1000;
+
+  y_position_derivative = (current_y_position_error + previous_y_position_error)/dy_time;
+  y_motor_speed = (int)((y_Kp * current_y_position_error) + (y_Ki * y_position_integral_error) + (y_Kd * y_position_derivative));
 
   if (y_motor_speed > 255)
        y_motor_speed = 255;
   else if (y_motor_speed < -255)
        y_motor_speed = -255;
   else
-       y_position_integral_error += (current_y_position_error * dt);
+       y_position_integral_error += (current_y_position_error * dy_time);
   previous_y_position_error = current_y_position_error;
 
   if(abs(current_y_position_error) < y_position_threshold)
@@ -1312,7 +1306,7 @@ void moveBaseY()
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
   }
-  else if(current_y_position < min_y_position)
+  else if(current_avg_y_position < min_y_position)
   {
     digitalWrite(FrontMotorIn1, LOW);
     digitalWrite(FrontMotorIn2, LOW);  
@@ -1341,10 +1335,8 @@ void moveBaseY()
       digitalWrite(FrontMotorIn2, LOW);  
       digitalWrite(BackMotorIn1, LOW);
       digitalWrite(BackMotorIn2, HIGH);
-      analogWrite(FrontMotorEnable, min_base_motor_speed);
-      analogWrite(BackMotorEnable, min_base_motor_speed);
-      /*analogWrite(FrontMotorEnable, y_motor_speed);
-      analogWrite(BackMotorEnable, y_motor_speed);*/
+      analogWrite(FrontMotorEnable, y_motor_speed);
+      analogWrite(BackMotorEnable, y_motor_speed);
     }
     else
     {
@@ -1353,10 +1345,8 @@ void moveBaseY()
       digitalWrite(FrontMotorIn2, HIGH);  
       digitalWrite(BackMotorIn1, HIGH);
       digitalWrite(BackMotorIn2, LOW);
-      analogWrite(FrontMotorEnable, min_base_motor_speed);
-      analogWrite(BackMotorEnable, min_base_motor_speed);
-      /*analogWrite(FrontMotorEnable, y_motor_speed);
-      analogWrite(BackMotorEnable, y_motor_speed);*/
+      analogWrite(FrontMotorEnable, y_motor_speed);
+      analogWrite(BackMotorEnable, y_motor_speed);
     }
   }
 }
