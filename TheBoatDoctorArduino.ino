@@ -149,7 +149,7 @@ const float y_position_threshold = 0.003;
 const float avg_x_position_threshold = 0.007;
 const float avg_y_position_threshold = 0.007;
 const int min_base_motor_speed = 100;
-const int max_base_motor_speed = 255;
+const int max_base_motor_speed = 200;
 float current_avg_x_position;
 float current_avg_y_position;
 float previous_x_position_error;
@@ -158,9 +158,9 @@ float x_position_integral_error = 0.0;
 float y_position_integral_error = 0.0;
 long previous_x_time = millis();
 long previous_y_time = millis();
-float Kp = 5.0;
-float Ki = 0.0;
-float Kd = 0.0;
+float Kp = 7.0;
+float Ki = 1.0;
+float Kd = 2.0;
 float current_x_position_error = 0.0;
 long current_x_time = millis();
 float dx_time = 0.0;
@@ -1237,13 +1237,13 @@ void moveBaseX()
   x_position_derivative = (current_x_position_error - previous_x_position_error)/dx_time;
   x_motor_speed = (int)((Kp * current_x_position_error) + (Ki * x_position_integral_error) + (Kd * x_position_derivative));
 
-  if (x_motor_speed > 255)
+  if (x_motor_speed > max_base_motor_speed)
   {
-    x_motor_speed = 255;
+    x_motor_speed = max_base_motor_speed;
   }
-  else if (x_motor_speed < -255)
+  else if (x_motor_speed < -max_base_motor_speed)
   {
-    x_motor_speed = -255;
+    x_motor_speed = -max_base_motor_speed;
   }   
   else
   {
@@ -1334,10 +1334,10 @@ void moveBaseY()
   y_position_derivative = (current_y_position_error - previous_y_position_error)/dy_time;
   y_motor_speed = (int)((Kp * current_y_position_error) + (Ki * y_position_integral_error) + (Kd * y_position_derivative));
 
-  if (y_motor_speed > 255)
-       y_motor_speed = 255;
-  else if (y_motor_speed < -255)
-       y_motor_speed = -255;
+  if (y_motor_speed > max_base_motor_speed)
+       y_motor_speed = max_base_motor_speed;
+  else if (y_motor_speed < -max_base_motor_speed)
+       y_motor_speed = -max_base_motor_speed;
   else
        y_position_integral_error += (current_y_position_error * dy_time);
   previous_y_position_error = current_y_position_error;
