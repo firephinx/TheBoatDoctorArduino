@@ -1355,7 +1355,19 @@ void moveXGantry()
 {
   long num_x_gantry_steps = (long)((desired_x_gantry_position - current_x_gantry_position) / x_gantry_distance_per_revolution) * x_gantry_steps_per_revolution;
 
-  if(num_x_gantry_steps > 0)
+  if(num_x_gantry_steps == 0)
+  {
+    move_x_gantry_flag = false;
+    if(!move_z_gantry_flag)
+    {
+      done_moving_gantry_msg.data = true;
+      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
+      delay(10);
+      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
+    }
+    return;
+  }
+  else if(num_x_gantry_steps > 0)
   {
     // Move X Gantry Forward
     digitalWrite(XGantryStepperDirection, HIGH);
@@ -1456,7 +1468,19 @@ void moveZGantry()
 {
   long num_z_gantry_steps = (long)((desired_z_gantry_position - current_z_gantry_position) / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 
-  if(num_z_gantry_steps > 0)
+  if(num_z_gantry_steps == 0)
+  {
+    move_z_gantry_flag = false;
+    if(!move_x_gantry_flag)
+    {
+      done_moving_gantry_msg.data = true;
+      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
+      delay(10);
+      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
+    }
+    return;
+  }
+  else if(num_z_gantry_steps > 0)
   {
     // Move Z Gantry Up
     digitalWrite(ZGantryStepperDirection, LOW);
