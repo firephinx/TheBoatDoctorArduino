@@ -1211,12 +1211,12 @@ void loop()
 
 void moveBaseX()
 {
-  float current_x_position_error = desired_x_position - current_avg_x_position;
-  long current_x_time = millis();
+  current_x_position_error = desired_x_position - current_avg_x_position;
+  current_x_time = millis();
 
   dx_time = ((float)(current_x_time - previous_x_time)) / 1000;
-  float x_position_derivative = (current_x_position_error + previous_x_position_error)/dx_time;
-  int x_motor_speed = (int)((Kp * current_x_position_error) + (Ki * x_position_integral_error) + (Kd * x_position_derivative));
+  x_position_derivative = (current_x_position_error + previous_x_position_error)/dx_time;
+  x_motor_speed = (int)((Kp * current_x_position_error) + (Ki * x_position_integral_error) + (Kd * x_position_derivative));
 
   if (x_motor_speed > 255)
        x_motor_speed = 255;
