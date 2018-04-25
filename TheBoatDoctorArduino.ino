@@ -1171,9 +1171,12 @@ void publishUltrasonicInfo()
 void publishJointStates()
 {
   joint_states_msg.header.stamp = nh.now();
-  joint_state_positions[0] = current_turntable_theta;
+  /*joint_state_positions[0] = current_turntable_theta;
   joint_state_positions[1] = current_x_gantry_position;
-  joint_state_positions[2] =  current_z_gantry_position;
+  joint_state_positions[2] =  current_z_gantry_position;*/
+  joint_state_positions[0] = current_x_position_error;
+  joint_state_positions[1] = x_position_integral_error;
+  joint_state_positions[2] = x_position_derivative;
   joint_states_msg.position = joint_state_positions;
   joint_states_pub.publish(&joint_states_msg);
 }
