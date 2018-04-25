@@ -571,16 +571,21 @@ void resetCallback(const std_msgs::Empty& reset_msg){
 
   desired_x_vel = 0.0;
   desired_y_vel = 0.0;
+
   current_x_position_error = 0.0;
   current_x_time = millis();
   dx_time = 0.0;
   x_position_derivative = 0.0;
+  x_position_integral_error = 0.0;
   x_motor_speed = 0;
+  
   current_y_position_error = 0.0;
   current_y_time = millis();
   dy_time = 0.0;
   y_position_derivative = 0.0;
+  y_position_integral_error = 0.0;
   y_motor_speed = 0;
+
   desired_x_position = current_x_position;
   desired_y_position = current_y_position;
   desired_turntable_theta = 0.0;
@@ -610,16 +615,21 @@ void stayCallback(const std_msgs::Empty& stay_msg){
 
   desired_x_vel = 0.0;
   desired_y_vel = 0.0;
+ 
   current_x_position_error = 0.0;
   current_x_time = millis();
   dx_time = 0.0;
   x_position_derivative = 0.0;
+  x_position_integral_error = 0.0;
   x_motor_speed = 0;
+  
   current_y_position_error = 0.0;
   current_y_time = millis();
   dy_time = 0.0;
   y_position_derivative = 0.0;
+  y_position_integral_error = 0.0;
   y_motor_speed = 0;
+ 
   desired_x_position = current_x_position;
   desired_y_position = current_y_position;
   desired_turntable_theta = current_turntable_theta;
