@@ -158,7 +158,7 @@ float x_position_integral_error = 0.0;
 float y_position_integral_error = 0.0;
 long previous_x_time = millis();
 long previous_y_time = millis();
-float Kp = 300.0;
+float Kp = 5.0;
 float Ki = 0.0;
 float Kd = 0.0;
 float current_x_position_error = 0.0;
@@ -1234,24 +1234,38 @@ void moveBaseX()
   current_x_time = millis();
 
   dx_time = ((float)(current_x_time - previous_x_time)) / 1000;
-  x_position_derivative = (current_x_position_error + previous_x_position_error)/dx_time;
+  x_position_derivative = (current_x_position_error - previous_x_position_error)/dx_time;
   x_motor_speed = (int)((Kp * current_x_position_error) + (Ki * x_position_integral_error) + (Kd * x_position_derivative));
 
   if (x_motor_speed > 255)
-       x_motor_speed = 255;
+  {
+    x_motor_speed = 255;
+  }
   else if (x_motor_speed < -255)
-       x_motor_speed = -255;
+  {
+    x_motor_speed = -255;
+  }   
   else
-       x_position_integral_error += (current_x_position_error * dx_time);
+  {
+    x_position_integral_error += (current_x_position_error * dx_time);
+  }
   previous_x_position_error = current_x_position_error;
+  previous_x_time = current_x_time;
   
+  // Check to see if robot is within tolerance of the desired position
   if(abs(current_x_position_error) < x_position_threshold)
   {
+    // Turn off the left and right motors
     digitalWrite(LeftMotorIn1, LOW);
     digitalWrite(LeftMotorIn2, LOW);  
     digitalWrite(RightMotorIn1, LOW);
     digitalWrite(RightMotorIn2, LOW); 
+
     move_base_x_flag = false;
+
+    previous_x_position_error = 0.0;
+    x_position_integral_error = 0.0;
+
     if(!move_base_y_flag)
     {
       done_moving_robot_base_msg.data = true;
@@ -1260,13 +1274,17 @@ void moveBaseX()
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
   }
+  // Check if robot is about to hit guide rail
   else if(current_avg_x_position < min_x_position)
   {
+    // Turn off the left and right motors
     digitalWrite(LeftMotorIn1, LOW);
     digitalWrite(LeftMotorIn2, LOW);  
     digitalWrite(RightMotorIn1, LOW);
     digitalWrite(RightMotorIn2, LOW); 
+
     move_base_x_flag = false;
+
     done_moving_robot_base_msg.data = false;
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     delay(10);
@@ -1313,7 +1331,7 @@ void moveBaseY()
 
   dy_time = ((float)(current_y_time - previous_y_time)) / 1000;
 
-  y_position_derivative = (current_y_position_error + previous_y_position_error)/dy_time;
+  y_position_derivative = (current_y_position_error - previous_y_position_error)/dy_time;
   y_motor_speed = (int)((Kp * current_y_position_error) + (Ki * y_position_integral_error) + (Kd * y_position_derivative));
 
   if (y_motor_speed > 255)
@@ -1323,14 +1341,20 @@ void moveBaseY()
   else
        y_position_integral_error += (current_y_position_error * dy_time);
   previous_y_position_error = current_y_position_error;
+  previous_y_time = current_y_time;
 
+  // Check to see if robot is within tolerance of the desired position
   if(abs(current_y_position_error) < y_position_threshold)
   {
+    // Turn off the front and back motors
     digitalWrite(FrontMotorIn1, LOW);
     digitalWrite(FrontMotorIn2, LOW);  
     digitalWrite(BackMotorIn1, LOW);
     digitalWrite(BackMotorIn2, LOW);
+
     move_base_y_flag = false;
+    previous_y_position_error = 0.0;
+    y_position_integral_error = 0.0;
     if(!move_base_x_flag)
     {
       done_moving_robot_base_msg.data = true;
@@ -1339,8 +1363,10 @@ void moveBaseY()
       done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
     }
   }
+  // Check if robot is about to hit guide rail
   else if(current_avg_y_position < min_y_position)
   {
+    // Turn off the front and back motors
     digitalWrite(FrontMotorIn1, LOW);
     digitalWrite(FrontMotorIn2, LOW);  
     digitalWrite(BackMotorIn1, LOW);
