@@ -130,7 +130,7 @@ float heading;
 // IMU Publisher
 ros::Publisher imu_pub("/TheBoatDoctor/imu", &imu_msg);
 
-// Motor Encoder Globals
+// Base Motor Globals
 long front_motor_encoder_count = 0;
 long left_motor_encoder_count = 0;
 long back_motor_encoder_count = 0;
@@ -158,6 +158,19 @@ float x_position_integral_error = 0.0;
 float y_position_integral_error = 0.0;
 long previous_x_time = millis();
 long previous_y_time = millis();
+float Kp = 300.0;
+float Ki = 0.0;
+float Kd = 0.0;
+float current_x_position_error = 0.0;
+long current_x_time = millis();
+float dx_time = 0.0;
+float x_position_derivative = 0.0;
+int x_motor_speed = 0;
+float current_y_position_error = 0.0;
+long current_y_time = millis();
+float dy_time = 0.0;
+float y_position_derivative = 0.0;
+int y_motor_speed = 0;
 const float avg_filter_size = 10;
 
 // Turntable Globals
@@ -338,22 +351,6 @@ bool move_base_y_flag = false;
 float desired_x_position;
 float desired_y_position;
 float desired_theta;
-
-float Kp = 300.0;
-float Ki = 0.0;
-float Kd = 0.0;
-
-float current_x_position_error;
-long current_x_time;
-float dx_time;
-float x_position_derivative;
-int x_motor_speed;
-
-float current_y_position_error;
-long current_y_time;
-float dy_time;
-float y_position_derivative;
-int y_motor_speed;
 
 // done moving robot base Publisher
 std_msgs::Bool done_moving_robot_base_msg;
@@ -574,6 +571,16 @@ void resetCallback(const std_msgs::Empty& reset_msg){
 
   desired_x_vel = 0.0;
   desired_y_vel = 0.0;
+  current_x_position_error = 0.0;
+  current_x_time = millis();
+  dx_time = 0.0;
+  x_position_derivative = 0.0;
+  x_motor_speed = 0;
+  current_y_position_error = 0.0;
+  current_y_time = millis();
+  dy_time = 0.0;
+  y_position_derivative = 0.0;
+  y_motor_speed = 0;
   desired_x_position = current_x_position;
   desired_y_position = current_y_position;
   desired_turntable_theta = 0.0;
@@ -603,6 +610,16 @@ void stayCallback(const std_msgs::Empty& stay_msg){
 
   desired_x_vel = 0.0;
   desired_y_vel = 0.0;
+  current_x_position_error = 0.0;
+  current_x_time = millis();
+  dx_time = 0.0;
+  x_position_derivative = 0.0;
+  x_motor_speed = 0;
+  current_y_position_error = 0.0;
+  current_y_time = millis();
+  dy_time = 0.0;
+  y_position_derivative = 0.0;
+  y_motor_speed = 0;
   desired_x_position = current_x_position;
   desired_y_position = current_y_position;
   desired_turntable_theta = current_turntable_theta;
