@@ -103,6 +103,8 @@ ros::Publisher ultrasonic_pose_pub("/TheBoatDoctor/ultrasonic_pose", &ultrasonic
 sensor_msgs::JointState joint_states_msg;
 char *joint_names[] = {"turntable", "X_motion", "Z_motion"};
 float joint_state_positions[3];
+float joint_state_velocities[3];
+float joint_state_efforts[3];
 
 // Joint States Publisher
 ros::Publisher joint_states_pub("/TheBoatDoctor/joint_states", &joint_states_msg);
@@ -146,21 +148,23 @@ const float min_x_position = 0.25;
 const float min_y_position = 0.25;
 const float x_position_threshold = 0.003;
 const float y_position_threshold = 0.003;
-const float avg_x_position_threshold = 0.007;
-const float avg_y_position_threshold = 0.007;
+const float avg_x_position_threshold = 0.003;
+const float avg_y_position_threshold = 0.003;
 const int min_base_motor_speed = 100;
 const int max_base_motor_speed = 200;
 float current_avg_x_position;
 float current_avg_y_position;
+float current_avg_x_position_error;
+float current_avg_y_position_error;
 float previous_x_position_error;
 float previous_y_position_error;
 float x_position_integral_error = 0.0;
 float y_position_integral_error = 0.0;
 long previous_x_time = millis();
 long previous_y_time = millis();
-float Kp = 7.0;
-float Ki = 1.0;
-float Kd = 2.0;
+float Kp = 1000.0;
+float Ki = 150.0;
+float Kd = 10.0;
 float current_x_position_error = 0.0;
 long current_x_time = millis();
 float dx_time = 0.0;
@@ -1177,7 +1181,14 @@ void publishJointStates()
   joint_state_positions[0] = current_x_position_error;
   joint_state_positions[1] = x_position_integral_error;
   joint_state_positions[2] = x_position_derivative;
+  joint_state_velocities[0] = current_y_position_error;
+  joint_state_velocities[1] = y_position_integral_error;
+  joint_state_velocities[2] = y_position_derivative;
+  joint_state_efforts[0] = x_motor_speed;
+  joint_state_efforts[1] = y_motor_speed;
   joint_states_msg.position = joint_state_positions;
+  joint_states_msg.velocity = joint_state_velocities;
+  joint_states_msg.effort = joint_state_efforts;
   joint_states_pub.publish(&joint_states_msg);
 }
 
@@ -1233,7 +1244,9 @@ void loop()
 
 void moveBaseX()
 {
-  current_x_position_error = desired_x_position - current_avg_x_position;
+  current_x_position_error = desired_x_position - current_x_position;
+  current_avg_x_position_error = desired_x_position - current_avg_x_position;
+
   current_x_time = millis();
 
   dx_time = ((float)(current_x_time - previous_x_time)) / 1000;
@@ -1256,7 +1269,8 @@ void moveBaseX()
   previous_x_time = current_x_time;
   
   // Check to see if robot is within tolerance of the desired position
-  if(abs(current_x_position_error) < x_position_threshold)
+  if(abs(current_x_position_error) < x_position_threshold && 
+     abs(current_avg_x_position_error) < avg_x_position_threshold)
   {
     // Turn off the left and right motors
     digitalWrite(LeftMotorIn1, LOW);
@@ -1278,7 +1292,7 @@ void moveBaseX()
     }
   }
   // Check if robot is about to hit guide rail
-  else if(current_avg_x_position < min_x_position)
+  else if(current_x_position < min_x_position)
   {
     // Turn off the left and right motors
     digitalWrite(LeftMotorIn1, LOW);
@@ -1328,7 +1342,8 @@ void moveBaseX()
 
 void moveBaseY()
 {
-  current_y_position_error = desired_y_position - current_avg_y_position;
+  current_y_position_error = desired_y_position - current_y_position;
+  current_avg_y_position_error = desired_y_position - current_avg_y_position;
 
   current_y_time = millis();
 
@@ -1347,7 +1362,8 @@ void moveBaseY()
   previous_y_time = current_y_time;
 
   // Check to see if robot is within tolerance of the desired position
-  if(abs(current_y_position_error) < y_position_threshold)
+  if(abs(current_y_position_error) < y_position_threshold && 
+     abs(current_avg_y_position_error) < avg_y_position_threshold)
   {
     // Turn off the front and back motors
     digitalWrite(FrontMotorIn1, LOW);
@@ -1367,7 +1383,7 @@ void moveBaseY()
     }
   }
   // Check if robot is about to hit guide rail
-  else if(current_avg_y_position < min_y_position)
+  else if(current_y_position < min_y_position)
   {
     // Turn off the front and back motors
     digitalWrite(FrontMotorIn1, LOW);
