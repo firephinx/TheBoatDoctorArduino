@@ -1295,23 +1295,23 @@ void moveBaseX()
   }
   else
   {
-    long current_left_motor_encoder_count = left_motor_encoder_count;
+    /*long current_left_motor_encoder_count = left_motor_encoder_count;
     long current_right_motor_encoder_count = right_motor_encoder_count;
 
     long num_x_encoder_counts = (long)((current_x_position_error / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
     
     long target_left_motor_encoder_count = left_motor_encoder_count - num_x_encoder_counts;
-    long target_right_motor_encoder_count = right_motor_encoder_count + num_x_encoder_counts;
+    long target_right_motor_encoder_count = right_motor_encoder_count + num_x_encoder_counts;*/
 
-    if (num_x_encoder_counts < 0)
+    if (x_motor_speed < 0)
     {
       // Going Forward
       digitalWrite(LeftMotorIn1, HIGH);
       digitalWrite(LeftMotorIn2, LOW);  
       digitalWrite(RightMotorIn1, LOW);
       digitalWrite(RightMotorIn2, HIGH);
-      analogWrite(LeftMotorEnable, x_motor_speed);
-      analogWrite(RightMotorEnable, x_motor_speed);
+      analogWrite(LeftMotorEnable, -x_motor_speed);
+      analogWrite(RightMotorEnable, -x_motor_speed);
     }
     else
     {
@@ -1382,23 +1382,23 @@ void moveBaseY()
   }
   else
   {
-    long current_front_motor_encoder_count = front_motor_encoder_count;
+    /*long current_front_motor_encoder_count = front_motor_encoder_count;
     long current_back_motor_encoder_count = back_motor_encoder_count;
 
     long num_y_encoder_counts = (long)((current_y_position_error / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
 
     long target_front_motor_encoder_count = front_motor_encoder_count - num_y_encoder_counts;
-    long target_back_motor_encoder_count = back_motor_encoder_count + num_y_encoder_counts;
+    long target_back_motor_encoder_count = back_motor_encoder_count + num_y_encoder_counts;*/
 
-    if(num_y_encoder_counts < 0)
+    if(y_motor_speed < 0)
     {
       // Going Right
       digitalWrite(FrontMotorIn1, HIGH);
       digitalWrite(FrontMotorIn2, LOW);  
       digitalWrite(BackMotorIn1, LOW);
       digitalWrite(BackMotorIn2, HIGH);
-      analogWrite(FrontMotorEnable, y_motor_speed);
-      analogWrite(BackMotorEnable, y_motor_speed);
+      analogWrite(FrontMotorEnable, -y_motor_speed);
+      analogWrite(BackMotorEnable, -y_motor_speed);
     }
     else
     {
