@@ -1165,6 +1165,7 @@ void publishUltrasonicInfo()
   ultrasonic_pose_msg.x = current_x_position;
   current_avg_x_position = (((current_avg_x_position * (avg_filter_size - 1)) + current_x_position) / avg_filter_size);
   ultrasonic_pose_msg.y = current_y_position;
+  ultrasonic_pose_msg.theta = heading;
   current_avg_y_position = (((current_avg_y_position * (avg_filter_size - 1)) + current_y_position) / avg_filter_size);
   front_ultrasonic_range_pub.publish(&front_ultrasonic_range_msg);
   right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
@@ -1282,6 +1283,8 @@ void moveBaseX()
 
     previous_x_position_error = 0.0;
     x_position_integral_error = 0.0;
+
+    previous_y_time = millis();
 
     if(!move_base_y_flag)
     {
