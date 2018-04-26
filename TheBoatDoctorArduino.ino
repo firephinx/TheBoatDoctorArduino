@@ -1274,10 +1274,12 @@ void moveBaseX()
      abs(current_avg_x_position_error) < avg_x_position_threshold)
   {
     // Turn off the left and right motors
+    digitalWrite(LeftMotorEnable, LOW);
+    digitalWrite(RightMotorEnable, LOW);
     digitalWrite(LeftMotorIn1, LOW);
     digitalWrite(LeftMotorIn2, LOW);  
     digitalWrite(RightMotorIn1, LOW);
-    digitalWrite(RightMotorIn2, LOW); 
+    digitalWrite(RightMotorIn2, LOW);
 
     move_base_x_flag = false;
 
@@ -1298,10 +1300,12 @@ void moveBaseX()
   else if(current_x_position < min_x_position)
   {
     // Turn off the left and right motors
+    digitalWrite(LeftMotorEnable, LOW);
+    digitalWrite(RightMotorEnable, LOW);
     digitalWrite(LeftMotorIn1, LOW);
     digitalWrite(LeftMotorIn2, LOW);  
     digitalWrite(RightMotorIn1, LOW);
-    digitalWrite(RightMotorIn2, LOW); 
+    digitalWrite(RightMotorIn2, LOW);
 
     move_base_x_flag = false;
 
@@ -1312,14 +1316,6 @@ void moveBaseX()
   }
   else
   {
-    /*long current_left_motor_encoder_count = left_motor_encoder_count;
-    long current_right_motor_encoder_count = right_motor_encoder_count;
-
-    long num_x_encoder_counts = (long)((current_x_position_error / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
-    
-    long target_left_motor_encoder_count = left_motor_encoder_count - num_x_encoder_counts;
-    long target_right_motor_encoder_count = right_motor_encoder_count + num_x_encoder_counts;*/
-
     if (x_motor_speed < 0)
     {
       // Going Forward
@@ -1369,6 +1365,8 @@ void moveBaseY()
      abs(current_avg_y_position_error) < avg_y_position_threshold)
   {
     // Turn off the front and back motors
+    digitalWrite(FrontMotorEnable, LOW);
+    digitalWrite(BackMotorEnable, LOW);
     digitalWrite(FrontMotorIn1, LOW);
     digitalWrite(FrontMotorIn2, LOW);  
     digitalWrite(BackMotorIn1, LOW);
@@ -1389,10 +1387,13 @@ void moveBaseY()
   else if(current_y_position < min_y_position)
   {
     // Turn off the front and back motors
+    digitalWrite(FrontMotorEnable, LOW);
+    digitalWrite(BackMotorEnable, LOW);
     digitalWrite(FrontMotorIn1, LOW);
     digitalWrite(FrontMotorIn2, LOW);  
     digitalWrite(BackMotorIn1, LOW);
     digitalWrite(BackMotorIn2, LOW);
+    
     move_base_y_flag = false;
     done_moving_robot_base_msg.data = false;
     done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
@@ -1401,14 +1402,6 @@ void moveBaseY()
   }
   else
   {
-    /*long current_front_motor_encoder_count = front_motor_encoder_count;
-    long current_back_motor_encoder_count = back_motor_encoder_count;
-
-    long num_y_encoder_counts = (long)((current_y_position_error / distance_traveled_per_wheel_revolution) * encoder_counts_per_revolution);
-
-    long target_front_motor_encoder_count = front_motor_encoder_count - num_y_encoder_counts;
-    long target_back_motor_encoder_count = back_motor_encoder_count + num_y_encoder_counts;*/
-
     if(y_motor_speed < 0)
     {
       // Going Right
