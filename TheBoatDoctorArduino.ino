@@ -109,6 +109,11 @@ float joint_state_efforts[3];
 // Joint States Publisher
 ros::Publisher joint_states_pub("/TheBoatDoctor/joint_states", &joint_states_msg);
 
+sensor_msgs::JointState debug_msg;
+ros::Publisher debug_pub("/TheBoatDoctor/debug", &debug_msg);
+char *debug_names[] = {"current_y_position", "desired_y_position", "current_y_position_error", "current_avg_y_position_error"};
+float debug_positions[4];
+
 // IMU INCLUDES
 #include <SPI.h> // SPI library included for SparkFunLSM9DS1
 #include <Wire.h> // I2C library included for SparkFunLSM9DS1
@@ -150,10 +155,14 @@ const float x_position_threshold = 0.003;
 const float y_position_threshold = 0.003;
 const float avg_x_position_threshold = 0.003;
 const float avg_y_position_threshold = 0.003;
-const int base_motor_speed_min_offset = 30;
-const int max_base_motor_speed = 200;
+const int base_motor_speed_min_offset = 50; // 69;
+const int max_base_motor_speed = 150;
 float current_avg_x_position;
 float current_avg_y_position;
+float previous_x_positions[10];
+int x_save_index = 0;
+float previous_y_positions[10];
+int y_save_index = 0;
 float current_avg_x_position_error;
 float current_avg_y_position_error;
 float previous_x_position_error;
@@ -162,9 +171,15 @@ float x_position_integral_error = 0.0;
 float y_position_integral_error = 0.0;
 long previous_x_time = millis();
 long previous_y_time = millis();
-float Kp = 1000.0;
-float Ki = 300.0;
-float Kd = 20.0;
+//float Kp = 1000.0;
+//float Ki = 10.0;
+//float Kd = 10.0;
+float x_Kp = 1000.0;//300.0;
+float x_Ki = 15.0; //10.0;//300.0;
+float x_Kd = 3; //300.0;//30.0;
+float y_Kp = 1000.0;//1200.0//300.0;
+float y_Ki = 10; //10//10.0;//300.0;
+float y_Kd = 4; //10//300.0;//30.0;
 float current_x_position_error = 0.0;
 long current_x_time = millis();
 float dx_time = 0.0;
@@ -181,7 +196,7 @@ const float avg_filter_size = 10;
 float current_turntable_theta = 0.0;
 long current_turntable_step_count = 0;
 const int turntable_step_interval = 300;
-const int turntable_step_time = 3000;
+const int turntable_step_time = 10000;
 const int turntable_steps_per_revolution = 6400;
 const int min_turntable_steps = -turntable_steps_per_revolution / 4; 
 const int max_turntable_steps = turntable_steps_per_revolution / 4; 
@@ -394,7 +409,7 @@ void moveRobotBaseCallback(const geometry_msgs::Pose2D& pose_2d_msg)
 }
 
 // Move Robot Base Subscriber
-ros::Subscriber<geometry_msgs::Pose2D> move_robot_base_sub("/TheBoatDoctor/move_robot_base", &moveRobotBaseCallback);
+ros::Subscriber<geometry_msgs::Pose2D> move_robot_base_sub("/TheBoatDoctor/move_robot_base", &moveRobotBaseCallback, 1);
 
 
 // COMMAND VELOCITY
@@ -591,6 +606,9 @@ void resetCallback(const std_msgs::Empty& reset_msg){
   dy_time = 0.0;
   y_position_derivative = 0.0;
   y_motor_speed = 0;
+
+  current_turntable_theta = 0.0;
+  current_turntable_step_count = 0;
 
   desired_x_vel = 0.0;
   desired_y_vel = 0.0;
@@ -843,6 +861,7 @@ void setup()
   nh.advertise(ultrasonic_pose_pub);
   nh.advertise(imu_pub);
   nh.advertise(joint_states_pub);
+  nh.advertise(debug_pub);
   nh.advertise(led_status_pub);
   nh.advertise(pump_status_pub);
   nh.advertise(done_homing_pub);
@@ -899,6 +918,13 @@ void setup()
   joint_states_msg.position_length = 3;
   joint_states_msg.effort_length = 3;
   joint_states_msg.name = joint_names;
+  
+  // Debug Msg Setup Code
+  debug_msg.name_length = 4;
+  debug_msg.velocity_length = 4;
+  debug_msg.position_length = 4;
+  debug_msg.effort_length = 4;
+  debug_msg.name = debug_names;
   
   readUltrasonicSensors();
   desired_x_position = current_x_position;
@@ -1034,19 +1060,56 @@ void ZGantryCalibrationSequence()
 
 void homeTurntable()
 {
-  if(current_turntable_step_count > 0)
+  int num_turntable_steps = -current_turntable_step_count;
+  if(current_turntable_step_count < 0)
   {
+    // Turn Clockwise
     digitalWrite(TurntableStepperDirection, HIGH);
-    digitalWrite(TurntableStepperPulse, HIGH);
-    digitalWrite(TurntableStepperPulse, LOW);
-    current_turntable_step_count--;
+
+    for (int i = 1; i < min(turntable_step_interval, num_turntable_steps); i++)
+    {
+      if(current_turntable_step_count >= max_turntable_steps)
+      {
+        current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
+        turn_turntable_flag = false;
+        done_turning_turntable_msg.data = false;
+        done_turning_turntable_pub.publish(&done_turning_turntable_msg);
+        delay(10);
+        done_turning_turntable_pub.publish(&done_turning_turntable_msg);
+        return;
+      }
+
+      digitalWrite(TurntableStepperPulse, HIGH);
+      digitalWrite(TurntableStepperPulse, LOW);
+      current_turntable_step_count++;
+
+      delayMicroseconds(turntable_step_time);
+    }
   }
-  else if(current_turntable_step_count < 0)
+  else if(current_turntable_step_count > 0)
   {
+    // Turn Counter Clockwise
     digitalWrite(TurntableStepperDirection, LOW);
-    digitalWrite(TurntableStepperPulse, HIGH);
-    digitalWrite(TurntableStepperPulse, LOW);
-    current_turntable_step_count++;
+
+    for (int i = 1; i < min(turntable_step_interval, -num_turntable_steps); i++)
+    {
+      if(current_turntable_step_count <= min_turntable_steps)
+      {
+        current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
+        turn_turntable_flag = false;
+        done_turning_turntable_msg.data = false;
+        done_turning_turntable_pub.publish(&done_turning_turntable_msg);
+        delay(10);
+        done_turning_turntable_pub.publish(&done_turning_turntable_msg);
+        return;
+      }
+
+      digitalWrite(TurntableStepperPulse, HIGH);
+      digitalWrite(TurntableStepperPulse, LOW);
+      current_turntable_step_count--;
+
+      delayMicroseconds(turntable_step_time);
+    }
   }
   else if(current_turntable_step_count == 0)
   {
@@ -1163,10 +1226,12 @@ void publishUltrasonicInfo()
   current_x_position = (front_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
   current_y_position = (right_ultrasonic_range_distance / 100) + ultrasonic_sensor_offset_from_center;
   ultrasonic_pose_msg.x = current_x_position;
-  current_avg_x_position = (((current_avg_x_position * (avg_filter_size - 1)) + current_x_position) / avg_filter_size);
+  previous_x_positions[x_save_index] = current_x_position;
+  x_save_index = (x_save_index + 1) % 10;
   ultrasonic_pose_msg.y = current_y_position;
+  previous_y_positions[y_save_index] = current_y_position;
+  y_save_index = (y_save_index + 1) % 10;
   ultrasonic_pose_msg.theta = heading;
-  current_avg_y_position = (((current_avg_y_position * (avg_filter_size - 1)) + current_y_position) / avg_filter_size);
   front_ultrasonic_range_pub.publish(&front_ultrasonic_range_msg);
   right_ultrasonic_range_pub.publish(&right_ultrasonic_range_msg);
   ultrasonic_pose_pub.publish(&ultrasonic_pose_msg);
@@ -1246,13 +1311,18 @@ void loop()
 void moveBaseX()
 {
   current_x_position_error = desired_x_position - current_x_position;
-  current_avg_x_position_error = desired_x_position - current_avg_x_position;
+  float total_x_position_error = 0.0;
+  for(int i = 0; i < 10; i++)
+  {
+    total_x_position_error += abs(desired_x_position - previous_x_positions[i]);
+  }
+  current_avg_x_position_error = total_x_position_error / 10;
 
   current_x_time = millis();
 
   dx_time = ((float)(current_x_time - previous_x_time)) / 1000;
   x_position_derivative = (current_x_position_error - previous_x_position_error)/dx_time;
-  x_motor_speed = (int)((Kp * current_x_position_error) + (Ki * x_position_integral_error) + (Kd * x_position_derivative));
+  x_motor_speed = (int)((x_Kp * current_x_position_error) + (x_Ki * x_position_integral_error) + (x_Kd * x_position_derivative));
 
   if(x_motor_speed > 0)
   {
@@ -1290,6 +1360,8 @@ void moveBaseX()
     digitalWrite(LeftMotorIn2, LOW);  
     digitalWrite(RightMotorIn1, LOW);
     digitalWrite(RightMotorIn2, LOW);
+
+    x_motor_speed = 0;
 
     move_base_x_flag = false;
 
@@ -1352,14 +1424,19 @@ void moveBaseX()
 void moveBaseY()
 {
   current_y_position_error = desired_y_position - current_y_position;
-  current_avg_y_position_error = desired_y_position - current_avg_y_position;
+  float total_y_position_error = 0.0;
+  for(int i = 0; i < 10; i++)
+  {
+    total_y_position_error += abs(desired_y_position - previous_y_positions[i]);
+  }
+  current_avg_y_position_error = total_y_position_error / 10;
 
   current_y_time = millis();
 
   dy_time = ((float)(current_y_time - previous_y_time)) / 1000;
 
   y_position_derivative = (current_y_position_error - previous_y_position_error)/dy_time;
-  y_motor_speed = (int)((Kp * current_y_position_error) + (Ki * y_position_integral_error) + (Kd * y_position_derivative));
+  y_motor_speed = (int)((y_Kp * current_y_position_error) + (y_Ki * y_position_integral_error) + (y_Kd * y_position_derivative));
 
   if(y_motor_speed > 0)
   {
@@ -1397,6 +1474,16 @@ void moveBaseY()
     digitalWrite(FrontMotorIn2, LOW);  
     digitalWrite(BackMotorIn1, LOW);
     digitalWrite(BackMotorIn2, LOW);
+
+    y_motor_speed = 0;
+    
+    debug_positions[0] = current_y_position;
+    debug_positions[1] = desired_y_position;
+    debug_positions[2] = current_y_position_error;
+    debug_positions[3] = current_avg_y_position_error;
+    
+    debug_msg.position = debug_positions;
+    debug_pub.publish(&debug_msg);
 
     move_base_y_flag = false;
     previous_y_position_error = 0.0;
