@@ -103,16 +103,17 @@ ros::Publisher ultrasonic_pose_pub("/TheBoatDoctor/ultrasonic_pose", &ultrasonic
 sensor_msgs::JointState joint_states_msg;
 char *joint_names[] = {"turntable", "X_motion", "Z_motion"};
 float joint_state_positions[3];
-float joint_state_velocities[3];
-float joint_state_efforts[3];
 
 // Joint States Publisher
 ros::Publisher joint_states_pub("/TheBoatDoctor/joint_states", &joint_states_msg);
 
 sensor_msgs::JointState debug_msg;
 ros::Publisher debug_pub("/TheBoatDoctor/debug", &debug_msg);
-char *debug_names[] = {"current_y_position", "desired_y_position", "current_y_position_error", "current_avg_y_position_error"};
-float debug_positions[4];
+char *debug_names[] = {"current_x_position", "desired_x_position", 
+                       "current_x_position_error", "current_avg_x_position_error", 
+                       "current_y_position", "desired_y_position", 
+                       "current_y_position_error", "current_avg_y_position_error"};
+float debug_positions[8];
 
 // IMU INCLUDES
 #include <SPI.h> // SPI library included for SparkFunLSM9DS1
@@ -151,8 +152,8 @@ const float max_base_speed = distance_traveled_per_wheel_revolution * motor_rpm 
 const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor encoder, but only using an interrupt for channel A
 const float min_x_position = 0.25;
 const float min_y_position = 0.25;
-const float x_position_threshold = 0.01;
-const float y_position_threshold = 0.01;
+const float x_position_threshold = 0.007;
+const float y_position_threshold = 0.007;
 const float avg_x_position_threshold = 0.01;
 const float avg_y_position_threshold = 0.01;
 const int base_motor_speed_min_offset = 50; // 69;
@@ -917,10 +918,10 @@ void setup()
   joint_states_msg.name = joint_names;
   
   // Debug Msg Setup Code
-  debug_msg.name_length = 4;
-  debug_msg.velocity_length = 4;
-  debug_msg.position_length = 4;
-  debug_msg.effort_length = 4;
+  debug_msg.name_length = 8;
+  debug_msg.velocity_length = 8;
+  debug_msg.position_length = 8;
+  debug_msg.effort_length = 8;
   debug_msg.name = debug_names;
   
   readUltrasonicSensors();
@@ -940,14 +941,17 @@ void home()
   if(home_z_gantry_flag)
   {
     homeZGantry();
+    checkIfDoneHoming();
   }
   else if(home_x_gantry_flag)
   {
     homeXGantry();
+    checkIfDoneHoming();
   }
   else if(home_turntable_flag)
   {
     homeTurntable();
+    checkIfDoneHoming();
   }
 }
 
@@ -994,7 +998,7 @@ void XGantryCalibrationSequence()
    
    delayMicroseconds(x_gantry_step_time);
   }
-  for (int i = 1; i < num_x_gantry_steps_from_limit_switch; i++)
+  for (int i = 0; i < num_x_gantry_steps_from_limit_switch; i++)
   {
    digitalWrite(XGantryStepperPulse, HIGH);
    digitalWrite(XGantryStepperPulse, LOW);
@@ -1046,7 +1050,7 @@ void ZGantryCalibrationSequence()
    
    delayMicroseconds(z_gantry_step_time);
   }
-  for (int i = 1; i < num_z_gantry_steps_from_limit_switch; i++)
+  for (int i = 0; i < num_z_gantry_steps_from_limit_switch; i++)
   {
    digitalWrite(ZGantryStepperPulse, HIGH);
    digitalWrite(ZGantryStepperPulse, LOW);
@@ -1063,7 +1067,7 @@ void homeTurntable()
     // Turn Clockwise
     digitalWrite(TurntableStepperDirection, HIGH);
 
-    for (int i = 1; i < min(turntable_step_interval, num_turntable_steps); i++)
+    for (int i = 0; i < num_turntable_steps; i++)
     {
       if(current_turntable_step_count >= max_turntable_steps)
       {
@@ -1088,7 +1092,7 @@ void homeTurntable()
     // Turn Counter Clockwise
     digitalWrite(TurntableStepperDirection, LOW);
 
-    for (int i = 1; i < min(turntable_step_interval, -num_turntable_steps); i++)
+    for (int i = 0; i < -num_turntable_steps; i++)
     {
       if(current_turntable_step_count <= min_turntable_steps)
       {
@@ -1108,15 +1112,8 @@ void homeTurntable()
       delayMicroseconds(turntable_step_time);
     }
   }
-  else if(current_turntable_step_count == 0)
-  {
-    home_turntable_flag = false;
-    done_homing_msg.data = true;
-    done_homing_pub.publish(&done_homing_msg);
-    delay(10);
-    done_homing_pub.publish(&done_homing_msg);
-  }
-  current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
+  home_turntable_flag = false;
+  current_turntable_theta = 0.0;
 }
 
 void updateTransform()
@@ -1238,21 +1235,44 @@ void publishUltrasonicInfo()
 void publishJointStates()
 {
   joint_states_msg.header.stamp = nh.now();
-  /*joint_state_positions[0] = current_turntable_theta;
+  joint_state_positions[0] = current_turntable_theta;
   joint_state_positions[1] = current_x_gantry_position;
-  joint_state_positions[2] =  current_z_gantry_position;*/
-  joint_state_positions[0] = current_x_position_error;
-  joint_state_positions[1] = x_position_integral_error;
-  joint_state_positions[2] = x_position_derivative;
-  joint_state_velocities[0] = current_y_position_error;
-  joint_state_velocities[1] = y_position_integral_error;
-  joint_state_velocities[2] = y_position_derivative;
-  joint_state_efforts[0] = x_motor_speed;
-  joint_state_efforts[1] = y_motor_speed;
+  joint_state_positions[2] =  current_z_gantry_position;
   joint_states_msg.position = joint_state_positions;
-  joint_states_msg.velocity = joint_state_velocities;
-  joint_states_msg.effort = joint_state_efforts;
   joint_states_pub.publish(&joint_states_msg);
+}
+
+void checkIfDoneHoming()
+{
+  if(home_x_gantry_flag == false && home_z_gantry_flag == false && home_turntable_flag == false)
+  {
+    done_homing_msg.data = true;
+    done_homing_pub.publish(&done_homing_msg);
+    delay(10);
+    done_homing_pub.publish(&done_homing_msg);
+  }
+}
+
+void checkIfDoneMovingRobotBase()
+{
+  if(move_base_x_flag == false && move_base_y_flag == false)
+  {
+    done_moving_robot_base_msg.data = true;
+    done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
+    delay(10);
+    done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
+  }
+}
+
+void checkIfDoneMovingGantry()
+{
+  if(move_x_gantry_flag == false && move_z_gantry_flag == false)
+  {
+    done_moving_gantry_msg.data = true;
+    done_moving_gantry_pub.publish(&done_moving_gantry_msg);
+    delay(10);
+    done_moving_gantry_pub.publish(&done_moving_gantry_msg);
+  }
 }
 
 // LOOP CODE
@@ -1264,16 +1284,19 @@ void loop()
     if(determineHoming())
     {
       home();
+      checkIfDoneHoming();
     }
     else
     {
       if(move_x_gantry_flag)
       {
         moveXGantry();
+        checkIfDoneMovingGantry();
       } 
       else if(move_z_gantry_flag)
       {
         moveZGantry();
+        checkIfDoneMovingGantry();
       }
       else if(turn_turntable_flag)
       {
@@ -1282,10 +1305,12 @@ void loop()
       else if(move_base_x_flag)
       {
         moveBaseX();
+        checkIfDoneMovingRobotBase();
       }
       else if(move_base_y_flag)
       {
         moveBaseY();
+        checkIfDoneMovingRobotBase();
       }
     }
   }
@@ -1360,6 +1385,18 @@ void moveBaseX()
 
     x_motor_speed = 0;
 
+    debug_positions[0] = current_x_position;
+    debug_positions[1] = desired_x_position;
+    debug_positions[2] = current_x_position_error;
+    debug_positions[3] = current_avg_x_position_error;
+    debug_positions[4] = current_y_position;
+    debug_positions[5] = desired_y_position;
+    debug_positions[6] = current_y_position_error;
+    debug_positions[7] = current_avg_y_position_error;
+    
+    debug_msg.position = debug_positions;
+    debug_pub.publish(&debug_msg);
+
     move_base_x_flag = false;
 
     previous_x_position_error = 0.0;
@@ -1367,13 +1404,7 @@ void moveBaseX()
 
     previous_y_time = millis();
 
-    if(!move_base_y_flag)
-    {
-      done_moving_robot_base_msg.data = true;
-      done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
-      delay(10);
-      done_moving_robot_base_pub.publish(&done_moving_robot_base_msg);
-    }
+    
   }
   // Check if robot is about to hit guide rail
   else if(current_x_position < min_x_position)
@@ -1474,10 +1505,14 @@ void moveBaseY()
 
     y_motor_speed = 0;
     
-    debug_positions[0] = current_y_position;
-    debug_positions[1] = desired_y_position;
-    debug_positions[2] = current_y_position_error;
-    debug_positions[3] = current_avg_y_position_error;
+    debug_positions[0] = current_x_position;
+    debug_positions[1] = desired_x_position;
+    debug_positions[2] = current_x_position_error;
+    debug_positions[3] = current_avg_x_position_error;
+    debug_positions[4] = current_y_position;
+    debug_positions[5] = desired_y_position;
+    debug_positions[6] = current_y_position_error;
+    debug_positions[7] = current_avg_y_position_error;
     
     debug_msg.position = debug_positions;
     debug_pub.publish(&debug_msg);
@@ -1638,13 +1673,6 @@ void moveXGantry()
   if(abs(num_x_gantry_steps) <= x_gantry_step_interval)
   {
     move_x_gantry_flag = false;
-    if(!move_z_gantry_flag)
-    {
-      done_moving_gantry_msg.data = true;
-      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-      delay(10);
-      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-    }
   }
 }
 
@@ -1680,7 +1708,7 @@ void moveZGantry()
         // Set the z_gantry_step_count to 0
         z_gantry_step_count = 0;
 
-        // current_z_gantry_position = ((float)(z_gantry_step_count) / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+        current_z_gantry_position = ((float)(z_gantry_step_count) / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
         move_z_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
@@ -1721,7 +1749,7 @@ void moveZGantry()
         // Set the z_gantry_step_count to 0
         z_gantry_step_count = 0;
 
-        // current_z_gantry_position = ((float)(z_gantry_step_count) / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
+        current_z_gantry_position = ((float)(z_gantry_step_count) / z_gantry_steps_per_revolution) * z_gantry_distance_per_revolution;
         move_z_gantry_flag = false;
         done_moving_gantry_msg.data = false;
         done_moving_gantry_pub.publish(&done_moving_gantry_msg);
@@ -1751,13 +1779,6 @@ void moveZGantry()
   if(abs(num_z_gantry_steps) <= z_gantry_step_interval)
   {
     move_z_gantry_flag = false;
-    if(!move_x_gantry_flag)
-    {
-      done_moving_gantry_msg.data = true;
-      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-      delay(10);
-      done_moving_gantry_pub.publish(&done_moving_gantry_msg);
-    }
   }
 }
 
@@ -1779,7 +1800,7 @@ void turnTurntable()
     // Turn Clockwise
     digitalWrite(TurntableStepperDirection, HIGH);
 
-    for (int i = 1; i < num_turntable_steps; i++) //min(turntable_step_interval, num_turntable_steps); i++)
+    for(int i = 0; i < num_turntable_steps; i++)
     {
       if(current_turntable_step_count >= max_turntable_steps)
       {
@@ -1804,7 +1825,7 @@ void turnTurntable()
     // Turn Counter Clockwise
     digitalWrite(TurntableStepperDirection, LOW);
 
-    for (int i = 1; i < -num_turntable_steps; i++) //min(turntable_step_interval, -num_turntable_steps); i++)
+    for(int i = 0; i < -num_turntable_steps; i++)
     {
       if(current_turntable_step_count <= min_turntable_steps)
       {
@@ -1827,12 +1848,9 @@ void turnTurntable()
 
   current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
 
-  //if(abs(num_turntable_steps) <= turntable_step_interval)
-  //{
-    turn_turntable_flag = false;
-    done_turning_turntable_msg.data = true;
-    done_turning_turntable_pub.publish(&done_turning_turntable_msg);
-    delay(10);
-    done_turning_turntable_pub.publish(&done_turning_turntable_msg);
-  //}
+  turn_turntable_flag = false;
+  done_turning_turntable_msg.data = true;
+  done_turning_turntable_pub.publish(&done_turning_turntable_msg);
+  delay(10);
+  done_turning_turntable_pub.publish(&done_turning_turntable_msg);
 }
