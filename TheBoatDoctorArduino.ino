@@ -156,7 +156,7 @@ const float x_position_threshold = 0.007;
 const float y_position_threshold = 0.007;
 const float avg_x_position_threshold = 0.01;
 const float avg_y_position_threshold = 0.01;
-const int base_motor_speed_min_offset = 50; // 69;
+const int base_motor_speed_min_offset = 0; // 69;
 const int max_base_motor_speed = 150;
 float current_avg_x_position;
 float current_avg_y_position;
@@ -175,12 +175,12 @@ long previous_y_time = millis();
 //float Kp = 1000.0;
 //float Ki = 10.0;
 //float Kd = 10.0;
-float x_Kp = 1000.0;//300.0;
-float x_Ki = 15.0; //10.0;//300.0;
-float x_Kd = 3; //300.0;//30.0;
-float y_Kp = 300.0;//1200.0//300.0;
-float y_Ki = 100; //10//10.0;//300.0;
-float y_Kd = 2.0; //10//300.0;//30.0;
+float x_Kp = 777.0;//300.0;
+float x_Ki = 333.0; //10.0;//300.0;
+float x_Kd = 8; //300.0;//30.0;
+float y_Kp = 888.0;//1200.0//300.0;
+float y_Ki = 333.0; //10//10.0;//300.0;
+float y_Kd = 8; //10//300.0;//30.0;
 float current_x_position_error = 0.0;
 long current_x_time = millis();
 float dx_time = 0.0;
@@ -223,7 +223,7 @@ const int z_gantry_step_interval = 3000;
 const int z_gantry_step_time = 300;
 const int z_gantry_steps_per_revolution = 1600;
 const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch
-const float z_gantry_length = 0.33; // 350mm or ~13.78"
+const float z_gantry_length = 0.333; // 333mm or ~13"
 const long max_z_gantry_steps = (long)(z_gantry_length / z_gantry_distance_per_revolution) * z_gantry_steps_per_revolution;
 const float z_gantry_threshold = z_gantry_distance_per_revolution / z_gantry_steps_per_revolution;
 
@@ -1372,7 +1372,7 @@ void moveBaseX()
   previous_x_time = current_x_time;
   
   // Check to see if robot is within tolerance of the desired position
-  if(abs(current_x_position_error) < x_position_threshold && 
+  if(//abs(current_x_position_error) < x_position_threshold && 
      abs(current_avg_x_position_error) < avg_x_position_threshold)
   {
     // Turn off the left and right motors
@@ -1492,7 +1492,7 @@ void moveBaseY()
   previous_y_time = current_y_time;
 
   // Check to see if robot is within tolerance of the desired position
-  if(abs(current_y_position_error) < y_position_threshold && 
+  if(//abs(current_y_position_error) < y_position_threshold && 
      abs(current_avg_y_position_error) < avg_y_position_threshold)
   {
     // Turn off the front and back motors
