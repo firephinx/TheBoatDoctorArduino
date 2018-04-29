@@ -151,10 +151,10 @@ const float max_base_speed = distance_traveled_per_wheel_revolution * motor_rpm 
 const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor encoder, but only using an interrupt for channel A
 const float min_x_position = 0.25;
 const float min_y_position = 0.25;
-const float x_position_threshold = 0.003;
-const float y_position_threshold = 0.003;
-const float avg_x_position_threshold = 0.003;
-const float avg_y_position_threshold = 0.003;
+const float x_position_threshold = 0.01;
+const float y_position_threshold = 0.01;
+const float avg_x_position_threshold = 0.01;
+const float avg_y_position_threshold = 0.01;
 const int base_motor_speed_min_offset = 50; // 69;
 const int max_base_motor_speed = 150;
 float current_avg_x_position;
@@ -177,9 +177,9 @@ long previous_y_time = millis();
 float x_Kp = 1000.0;//300.0;
 float x_Ki = 15.0; //10.0;//300.0;
 float x_Kd = 3; //300.0;//30.0;
-float y_Kp = 1000.0;//1200.0//300.0;
-float y_Ki = 10; //10//10.0;//300.0;
-float y_Kd = 4; //10//300.0;//30.0;
+float y_Kp = 300.0;//1200.0//300.0;
+float y_Ki = 100; //10//10.0;//300.0;
+float y_Kd = 2.0; //10//300.0;//30.0;
 float current_x_position_error = 0.0;
 long current_x_time = millis();
 float dx_time = 0.0;
@@ -196,7 +196,7 @@ const float avg_filter_size = 10;
 float current_turntable_theta = 0.0;
 long current_turntable_step_count = 0;
 const int turntable_step_interval = 300;
-const int turntable_step_time = 10000;
+const int turntable_step_time = 3000;
 const int turntable_steps_per_revolution = 6400;
 const int min_turntable_steps = -turntable_steps_per_revolution / 4; 
 const int max_turntable_steps = turntable_steps_per_revolution / 4; 
@@ -606,9 +606,6 @@ void resetCallback(const std_msgs::Empty& reset_msg){
   dy_time = 0.0;
   y_position_derivative = 0.0;
   y_motor_speed = 0;
-
-  current_turntable_theta = 0.0;
-  current_turntable_step_count = 0;
 
   desired_x_vel = 0.0;
   desired_y_vel = 0.0;
@@ -1782,7 +1779,7 @@ void turnTurntable()
     // Turn Clockwise
     digitalWrite(TurntableStepperDirection, HIGH);
 
-    for (int i = 1; i < min(turntable_step_interval, num_turntable_steps); i++)
+    for (int i = 1; i < num_turntable_steps; i++) //min(turntable_step_interval, num_turntable_steps); i++)
     {
       if(current_turntable_step_count >= max_turntable_steps)
       {
@@ -1807,7 +1804,7 @@ void turnTurntable()
     // Turn Counter Clockwise
     digitalWrite(TurntableStepperDirection, LOW);
 
-    for (int i = 1; i < min(turntable_step_interval, -num_turntable_steps); i++)
+    for (int i = 1; i < -num_turntable_steps; i++) //min(turntable_step_interval, -num_turntable_steps); i++)
     {
       if(current_turntable_step_count <= min_turntable_steps)
       {
@@ -1830,12 +1827,12 @@ void turnTurntable()
 
   current_turntable_theta = (((float)current_turntable_step_count) / turntable_steps_per_revolution) * 2 * PI;
 
-  if(abs(num_turntable_steps) <= turntable_step_interval)
-  {
+  //if(abs(num_turntable_steps) <= turntable_step_interval)
+  //{
     turn_turntable_flag = false;
     done_turning_turntable_msg.data = true;
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
     delay(10);
     done_turning_turntable_pub.publish(&done_turning_turntable_msg);
-  }
+  //}
 }
