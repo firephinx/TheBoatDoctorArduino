@@ -364,6 +364,25 @@ void homeCallback(const std_msgs::Empty& home_msg){
 // Home Command Subscriber
 ros::Subscriber<std_msgs::Empty> home_sub("/TheBoatDoctor/Home", &homeCallback);
 
+// Home Gantry Command Callback
+// Returns the gantries to the home position by setting their homing flags to true
+void homeGantryCallback(const std_msgs::Empty& home_msg){
+  home_x_gantry_flag = true;
+  home_z_gantry_flag = true;
+}
+
+// Home Gantry Command Subscriber
+ros::Subscriber<std_msgs::Empty> home_gantry_sub("/TheBoatDoctor/HomeGantry", &homeGantryCallback);
+
+// Home Turntable Command Callback
+// Returns the turntable to the home position by setting its homing flag to true
+void homeTurntableCallback(const std_msgs::Empty& home_msg){
+  home_turntable_flag = true;
+}
+
+// Home Turntable Command Subscriber
+ros::Subscriber<std_msgs::Empty> home_turntable_sub("/TheBoatDoctor/HomeTurntable", &homeTurntableCallback);
+
 // MOVE ROBOT BASE
 // Move Robot Base Globals
 bool move_base_x_flag = false;
@@ -872,6 +891,8 @@ void setup()
   nh.subscribe(pump_switch_sub);
   nh.subscribe(stop_sub);
   nh.subscribe(home_sub);
+  nh.subscribe(home_gantry_sub);
+  nh.subscribe(home_turntable_sub);
   nh.subscribe(reset_sub);
   nh.subscribe(stay_sub);
   nh.subscribe(move_robot_base_sub);
