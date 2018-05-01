@@ -150,14 +150,14 @@ const float distance_between_wheels = 0.33333; // There is around 0.333m (13.1")
 const float distance_traveled_per_wheel_revolution = wheel_diameter * PI; // m
 const float max_base_speed = distance_traveled_per_wheel_revolution * motor_rpm / 60.0; // m/s
 const int encoder_counts_per_revolution = (64 / 2) * gear_ratio; // 64 CPR motor encoder, but only using an interrupt for channel A
-const float min_x_position = 0.25;
-const float min_y_position = 0.25;
+const float min_x_position = 0.233;
+const float min_y_position = 0.233;
 const float x_position_threshold = 0.007;
 const float y_position_threshold = 0.007;
 const float avg_x_position_threshold = 0.01;
 const float avg_y_position_threshold = 0.01;
 const int base_motor_speed_min_offset = 0; // 69;
-const int max_base_motor_speed = 150;
+const int max_base_motor_speed = 133;
 float current_avg_x_position;
 float current_avg_y_position;
 float previous_x_positions[10];
