@@ -207,9 +207,9 @@ const float turntable_threshold = 2 * PI / turntable_steps_per_revolution;
 // X Gantry Globals
 float current_x_gantry_position = 0.0;
 long x_gantry_step_count = 0;
-const int num_x_gantry_steps_from_limit_switch = 300;
+const int num_x_gantry_steps_from_limit_switch = 800;
 const int x_gantry_step_interval = 3000;
-const int x_gantry_step_time = 150;
+const int x_gantry_step_time = 144;
 const int x_gantry_steps_per_revolution = 1600;
 const float x_gantry_distance_per_revolution = 0.005; // 5 mm pitch
 const float x_gantry_length = 0.23; // 300 mm length, but safety of 250mm
@@ -219,9 +219,9 @@ const float x_gantry_threshold = x_gantry_distance_per_revolution / x_gantry_ste
 // Z Gantry Globals
 float current_z_gantry_position;
 long z_gantry_step_count;
-const int num_z_gantry_steps_from_limit_switch = 100;
+const int num_z_gantry_steps_from_limit_switch = 800;
 const int z_gantry_step_interval = 3000;
-const int z_gantry_step_time = 250;
+const int z_gantry_step_time = 169;
 const int z_gantry_steps_per_revolution = 1600;
 const float z_gantry_distance_per_revolution = 0.008; // 8 mm pitch
 const float z_gantry_length = 0.333; // 333mm or ~13"
